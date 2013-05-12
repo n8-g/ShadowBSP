@@ -47,8 +47,12 @@ public:
 	std::vector<Polygon>&		polygons();			// the polygons on the plane
 	const std::vector<Polygon>& polygons() const;
 
-	std::vector<Polygon>&		fragments() { return _fragments; }		
-	const std::vector<Polygon>& fragments() const { return _fragments; }
+	//std::vector<Polygon>&		fragments() { return _fragments; }		
+	//const std::vector<Polygon>& fragments() const { return _fragments; }
+	LightNode& light_node() { return _light_node; }
+	
+	// OpenGL display list for optimized rendering
+	unsigned int display_list;
 	
 	void clear() { delete _front; delete _back; _front = NULL; _back = NULL; }
 	
@@ -70,7 +74,8 @@ private:
 	// the list of polygons that are on the plane.
 	// the partitioning plane will be the first polygon in the list
 	std::vector<Polygon> _on_list;
-	std::vector<Polygon> _fragments;
+	//std::vector<Polygon> _fragments;
+	LightNode _light_node;
 	
 	Plane _plane;
 

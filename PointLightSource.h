@@ -21,7 +21,7 @@ class PointLightSource
     
         PointLightSource();
 		
-		void determineShadow(BSPNode* treeNode, BSPNode* shadowNode, Polygon& polygon);
+		void determineShadow(std::vector<Polygon>& lit, std::vector<Polygon>& shadowed, BSPNode* shadowNode, Polygon& polygon);
     
         // Position of the light source
         Point position;

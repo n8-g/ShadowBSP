@@ -7,6 +7,22 @@ using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+Polygon::Polygon(const std::vector<Point>& points) : _points(points), _n()
+{
+	// Newell's Method
+	if (points.size() > 2)
+	{
+		for (int i = 0; i < points.size(); ++i)
+		{
+			const Point& p1 = points[i], &p2 = points[(i+1)%points.size()];
+			_n.x += (p1.y-p2.y) * (p1.z+p2.z);
+			_n.y += (p1.z-p2.z) * (p1.x+p2.x);
+			_n.z += (p1.x-p2.x) * (p1.y+p2.y);
+		}
+		_n = _n.normalize();
+	}
+}
+
 // Splits a polygon by a plane defined by normal and dist and fills 
 void Polygon::split(Polygon& front, Polygon& back, const Vector3d& normal, double distance) const
 {
@@ -113,4 +129,15 @@ std::ostream& operator<< (std::ostream& stream, const Polygon& p)
 		stream << p[i];
 	return stream << "]"; 
 }
-
+	
+void LightNode::dump()
+{
+	cout << "LightNode " << (void*)this <<endl;
+	if (illuminated)
+		illuminated->dump();
+	if (shadowed)
+		shadowed->dump();
+	for (int i = 0; i < fragments.size(); ++i)
+		cout << "Fragment " << fragments[i] << endl;
+	cout << "/LightNode" << endl;
+}

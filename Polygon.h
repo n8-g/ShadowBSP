@@ -19,7 +19,7 @@ struct Vector3d
 	double z;
     
 	// - constructors
-    Vector3d() { }
+    Vector3d() : x(0), y(0), z(0) { }
 	// this one requires specific values for the coordiantes
 	Vector3d(double x, double y, double z) : x(x), y(y), z(z) { }
  
@@ -111,25 +111,16 @@ public:
 		_points.push_back(b);
 		_points.push_back(c);
 	}
-	Polygon(const std::vector<Point>& points) : _points(points)
-	{
-		_n = (points[1]-points[0]).cross(points[2]-points[0]).normalize();
-	}
+	Polygon(const std::vector<Point>& points);
 	Polygon() {}
 	
 	// - copy constructor
-	Polygon(const Polygon &copy): _points(copy._points), _n(copy._n), _lights(copy._lights) {}
+	Polygon(const Polygon &copy): _points(copy._points), _n(copy._n) {}
 
 	// - accessor to the vertices
 	Point& 			operator[](int index) { return _points[index]; }
 	const Point& 	operator[](int index) const { return _points[index]; }
 	int size() const { return _points.size(); }
-	
-	void clear_lights() { _lights = 0; }
-	bool has_light(int light) { return _lights & (1 << light); }
-	void add_light(int light) { _lights |= (1 << light); }
-	void remove_light(int light) { _lights &= ~(1 << light); }
-	bool is_lit() { return _lights != 0; }
 	
 	const Vector3d& normal() const { return _n; }
 	
@@ -137,19 +128,27 @@ public:
 	
 	void split(Polygon& front, Polygon& back, const Vector3d& normal, double dist) const;
 
-
 private:
 	// For splitting
-	Polygon(const std::vector<Point>& points, const Polygon& original) : _points(points), _n(original._n), _lights(original._lights) {}
+	Polygon(const std::vector<Point>& points, const Polygon& original) : _points(points), _n(original._n) {}
 	
-	// the three vertices
-	//Point _vertices[3];
 	std::vector<Point> _points;
 	Vector3d _n;
-	unsigned int _lights; // Bitmask of lights
-
-	// the status of being lit
 };
+
+struct LightNode
+{
+	LightNode() : illuminated(NULL),shadowed(NULL) {}
+	void clear() { delete illuminated; illuminated = NULL; delete shadowed; shadowed = NULL; }
+	~LightNode() { clear(); }
+	int light;
+	std::vector<Polygon> fragments;
+	LightNode* illuminated;
+	LightNode* shadowed;
+	
+	void dump();
+};
+
 std::ostream& operator<< (std::ostream& stream, const Polygon& p);
 
 #endif

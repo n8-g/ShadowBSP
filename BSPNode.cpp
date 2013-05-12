@@ -18,6 +18,8 @@ BSPNode::BSPNode(bool out)
 
 	_front = NULL;
 	_back = NULL;
+	
+	display_list = -1;
 }
 
 BSPNode::~BSPNode()
@@ -46,9 +48,13 @@ void BSPNode::convert(const Polygon &polygon)
 	
 void BSPNode::init_fragments()
 {
-	_fragments.clear();
+	_light_node.clear();
 	for (int i = 0; i < _on_list.size(); ++i)
-		_fragments.push_back(_on_list[i]);
+		_light_node.fragments.push_back(_on_list[i]);
+	
+	//_fragments.clear();
+	//for (int i = 0; i < _on_list.size(); ++i)
+	//	_fragments.push_back(_on_list[i]);
 	if (_front)
 		_front->init_fragments();
 	if (_back)
@@ -65,14 +71,15 @@ void BSPNode::dump()
 		Polygon& fragment = _on_list[i];
 		cout << "Polygon " <<fragment << endl;
 	}
-	for (int i = 0; i < _fragments.size(); ++i)
+	_light_node.dump();
+	/*for (int i = 0; i < _fragments.size(); ++i)
 	{
 		Polygon& fragment = _fragments[i];
 		cout << "Fragment " <<fragment << endl;
-	}
+	}*/
 	if (_back) _back->dump();
 	else cout << "No back" << endl;
-	cout << "End BSPNode" << endl;
+	cout << "/BSPNode" << endl;
 }
 
 void BSPNode::add_polygon(const Polygon& polygon)

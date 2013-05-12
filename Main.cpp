@@ -37,6 +37,8 @@ static double elapsed;
 static bool enableLines = true;
 static bool frontToBack = false;
 static bool singleLight = false;
+static int nframes;
+static int frame_timer;
 
 int UpdateLighting(void);
 
@@ -48,6 +50,7 @@ void Keyboard(unsigned char key, int x, int y)
 		exit(0);
 	case 'o':
 		enableLines = !enableLines;
+		UpdateLighting();
 		break;
 	case 'l':
 		enableLighting = !enableLighting;
@@ -109,48 +112,90 @@ void Mouse(int button, int state, int x, int y)
 	lasty = y;
 }
 
-bool DrawFragments (BSPNode* node, void* data)
+void DrawLightNode (LightNode* node)
 {
-	for (int i = 0; i < node->fragments().size(); ++i)
+	if (node->illuminated && node->shadowed)
 	{
-		Polygon& fragment = node->fragments()[i];
-		glPushAttrib(GL_LIGHTING_BIT);
-		for (int l = 0; l < lightSources.size(); ++l)
-			if (fragment.has_light(l))
-				glEnable(GL_LIGHT0+l);
-		glBegin(GL_POLYGON);
-		glColor3f(1,1,1);
-		glNormal3f(fragment.normal().x,fragment.normal().y,fragment.normal().z);
-		for (int i = 0; i < fragment.size(); ++i)
-			glVertex3f(fragment[i].x,fragment[i].y,fragment[i].z);
+		DrawLightNode(node->shadowed);
+		glEnable(GL_LIGHT0+node->light);
+		DrawLightNode(node->illuminated);
+		glDisable(GL_LIGHT0+node->light);
+	}
+	else
+	{
+		glBegin(GL_TRIANGLES);
+		for (int i = 0; i < node->fragments.size(); ++i)
+		{
+			Polygon& fragment = node->fragments[i];
+			glColor3f(1,1,1);
+			glNormal3f(fragment.normal().x,fragment.normal().y,fragment.normal().z);
+			for (int i = 1; i < fragment.size()-1; ++i)
+			{
+				glVertex3f(fragment[0].x,fragment[0].y,fragment[0].z);
+				glVertex3f(fragment[i].x,fragment[i].y,fragment[i].z);
+				glVertex3f(fragment[i+1].x,fragment[i+1].y,fragment[i+1].z);
+			}
+		}
 		glEnd();
 		if (enableLines)
 		{
 			glColor3f(0,0,0);
-			glBegin(GL_LINE_LOOP);
-			for (int i = 0; i < fragment.size(); ++i)
-				glVertex3f(fragment[i].x,fragment[i].y,fragment[i].z);
-			glEnd();
+			for (int i = 0; i < node->fragments.size(); ++i)
+			{
+				Polygon& fragment = node->fragments[i];
+				glBegin(GL_LINE_LOOP);
+				for (int i = 0; i < fragment.size(); ++i)
+					glVertex3f(fragment[i].x,fragment[i].y,fragment[i].z);
+				glEnd();
+			}
 		}
-		glPopAttrib();
 	}
 }
 
-bool GenerateShadows(BSPNode* node, void* data)
+bool DrawFragments (BSPNode* node, void* data)
 {
-    PointLightSource *pls = (PointLightSource*) data;
-	vector<Polygon> fragments = node->fragments(); // Use the last list of fragments so we can have multiple light sources
-	node->fragments().clear(); // Clear the node's list of fragments since we're going to regenerate it
-	for (int i = 0; i < fragments.size(); ++i)
+	if (node->display_list != -1)
+		glCallList(node->display_list);
+	else
+		DrawLightNode(&node->light_node());
+	return true;
+}
+
+bool GenerateShadows(LightNode* node, PointLightSource *pls)
+{
+	if (node->illuminated && node->shadowed)
 	{
-	    Polygon& p = fragments[i];
+		GenerateShadows(node->illuminated,pls);
+		GenerateShadows(node->shadowed,pls);
+		return true;
+	}
+	// Leaf node - convert to interior node
+	node->light = pls->index;
+	node->illuminated = new LightNode();
+	node->shadowed = new LightNode();
+	for (int i = 0; i < node->fragments.size(); ++i)
+	{
+	    Polygon& p = node->fragments[i];
 		Vector3d normal = p.normal();
 		//cout << "Generating shadows for " << p << endl;
 		float dot = normal.dot(pls->position-p[0]);
 	    if(dot > 0) // Facing the light
-			pls->determineShadow(node,&shadowTree,p);
-		else node->fragments().push_back(p); // Keep it in the tree in case another light illuminates it
+			pls->determineShadow(node->illuminated->fragments,node->shadowed->fragments,&shadowTree,p);
+		else node->shadowed->fragments.push_back(p); // Keep it in the tree in case another light illuminates it
 	}
+	node->fragments.clear();
+	return true;
+}
+
+bool GenerateShadows(BSPNode* node, void* data)
+{
+	GenerateShadows(&node->light_node(),(PointLightSource*) data);
+	if (node->display_list == -1)
+		node->display_list = glGenLists(1);
+	// Compile a display list for rendering later. This way, GL can optomize it
+	glNewList(node->display_list, GL_COMPILE);
+	DrawLightNode(&node->light_node());
+	glEndList();
 	return true;
 }
 
@@ -173,6 +218,13 @@ void DrawGraphics (void)
 	double delta = (time - elapsed)/1000.0f;
 	double move_vector[3] = { 0, 0, 0 };
 	elapsed = time;
+	++nframes;
+	if (frame_timer < glutGet(GLUT_ELAPSED_TIME))
+	{
+		printf("%d frames per second\n",nframes);
+		frame_timer = glutGet(GLUT_ELAPSED_TIME)+1000;
+		nframes = 0;
+	}
 	if (keystate['-']) dist += delta * MOVESPEED;
 	else if (keystate['=']) dist -= delta * MOVESPEED;
 	position[0] = sin(direction)*cos(pitch)*dist;
@@ -243,7 +295,7 @@ void DrawGraphics (void)
 	glutSwapBuffers();
 }
 
-vector<Polygon> ParseOBJ(const char* objFile)
+vector<Polygon> ParseOBJ(const char* objFile, float scale, float tx, float ty, float tz)
 {
 	double x, y, z;
 	vector<Point> points;
@@ -263,8 +315,9 @@ vector<Polygon> ParseOBJ(const char* objFile)
 			x = strtod(buffer+1,&ptr);
 			y = strtod(ptr,&ptr);
 			z = strtod(ptr,&ptr);
+			
 			printf("v %f %f %f\n",x,y,z);
-			points.push_back(Point(x,y,z));
+			points.push_back(Point(x*scale+tx,y*scale+ty,z*scale+tz));
 			break;
 		case 'f':
 			polypoints.clear();
@@ -353,9 +406,16 @@ int main (int argc, char* argv[])
 	}
 	
 	LoadScene(argv[1]);
-	if (argv[2])
+
+	if (argc > 2)
 	{
-		vector<Polygon> polygons = ParseOBJ(argv[2]);
+		float scale = 1;
+		float tx=0,ty=0,tz=0;
+		if (argc > 3) scale = strtod(argv[3],NULL);
+		if (argc > 4) tx = strtod(argv[4],NULL);
+		if (argc > 5) ty = strtod(argv[5],NULL);
+		if (argc > 6) tz = strtod(argv[6],NULL);
+		vector<Polygon> polygons = ParseOBJ(argv[2],scale,tx,ty,tz);
 		Utility::permute_list(polygons);
 		tree.add_polygons(polygons);
 	}
@@ -375,7 +435,7 @@ int main (int argc, char* argv[])
 	glClearColor(0,0,0,1);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	gluPerspective(45,WIDTH/HEIGHT,1,100);
+	gluPerspective(45,WIDTH/HEIGHT,0.001,1000);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_LIGHTING);
 	glEnable(GL_COLOR_MATERIAL);
