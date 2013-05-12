@@ -1,6 +1,7 @@
 
 #include <cstddef>
 #include <vector>
+#include <iostream>
 
 using namespace std;
 
@@ -23,8 +24,8 @@ BSPNode::~BSPNode()
 {
 	// when the destructor is called, both subtrees should have been released,
 	// so just set the two pointers to NULL
-	_front = NULL;
-	_back = NULL;
+	delete _front;
+	delete _back;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -33,18 +34,98 @@ void BSPNode::convert(const Polygon &polygon)
 {
 	// append the polygon to the 'on set'
 	_on_list.push_back(polygon);
+	
+	_plane.n = polygon.normal();
+	_plane.d = polygon[0].dot(_plane.n);
 
 	// create two children, which are both leaves, to represent the two new
 	// cells
 	_front = new BSPNode(true);
 	_back = new BSPNode(false);	// those behind are considered inside
 }
-
-void BSPNode::add_polygon(const Polygon &polygon)
+	
+void BSPNode::init_fragments()
 {
-	// just append it to the 'on set'
-	_on_list.push_back(polygon);
+	_fragments.clear();
+	for (int i = 0; i < _on_list.size(); ++i)
+		_fragments.push_back(_on_list[i]);
+	if (_front)
+		_front->init_fragments();
+	if (_back)
+		_back->init_fragments();
 }
+
+void BSPNode::dump()
+{
+	cout << "BSPNode " << (void*)this << _plane.n << "," << _plane.d << endl;
+	if (_front) _front->dump();
+	else cout << "No front" << endl;
+	for (int i = 0; i < _on_list.size(); ++i)
+	{
+		Polygon& fragment = _on_list[i];
+		cout << "Polygon " <<fragment << endl;
+	}
+	for (int i = 0; i < _fragments.size(); ++i)
+	{
+		Polygon& fragment = _fragments[i];
+		cout << "Fragment " <<fragment << endl;
+	}
+	if (_back) _back->dump();
+	else cout << "No back" << endl;
+	cout << "End BSPNode" << endl;
+}
+
+void BSPNode::add_polygon(const Polygon& polygon)
+{
+	// first check if the polygon should be added to the root of the subtree
+	if (is_leaf()) {
+		// the root node is empty, just add the polygon to it
+		printf("BSPNode(%p): converting leaf\n",this);
+		convert(polygon);
+	} else {
+		// partitioning plane
+		float d;
+		int i;
+		int front=0,back=0;
+		for (i = 0; i < polygon.size() && (!front || !back); ++i)
+		{
+			float d = _plane.n.dot(polygon[i]) - _plane.d;
+			if (d > THRESHOLD) ++front;
+			if (d < THRESHOLD) ++back;
+		}
+		if (!front && !back) // All points lie on the plane
+		{
+			printf("BSPNode(%p): adding planar polygon\n",this);
+			_on_list.push_back(polygon);
+		}
+		else if (!back) // All points in front of the plane
+		{
+			printf("BSPNode(%p): polygon to front\n",this);
+			_front->add_polygon(polygon);
+		}
+		else if (!front) // All points behind the plane
+		{
+			printf("BSPNode(%p): polygon to back\n",this);
+			_back->add_polygon(polygon);
+		}
+		else // Polygon crosses the plane
+		{
+			printf("BSPNode(%p): splitting polygon by plane (%g,%g,%g,%g)\n",this,_plane.n.x,_plane.n.y,_plane.n.z,_plane.d);
+			// split the polygon if it spans the partition plane
+			Polygon front,back;
+
+			polygon.split(front, back, _plane.n, _plane.d);
+			
+			if (front.size())
+				_front->add_polygon(front);
+			
+			if (back.size())
+				_back->add_polygon(back);
+		}
+		printf("BSPNode(%p): done\n",this);
+	}
+}
+
 
 BSPNode* BSPNode::front() const
 {
@@ -67,16 +148,6 @@ bool BSPNode::is_leaf() const
 	return (_front == NULL && _back == NULL);
 }
 
-Polygon BSPNode::plane() const
-{
-	// the first element of the 'on set' is the partitioning plane
-	if (_on_list.empty()) {
-		return Polygon(Point(0.0, 0.0, 0.0), Point(0.0, 0.0, 0.0), Point(0.0, 0.0, 0.0));
-	}
-
-	return _on_list[0];
-}
-
 vector<Polygon>& BSPNode::polygons() 
 {
 	return _on_list;
@@ -85,4 +156,44 @@ vector<Polygon>& BSPNode::polygons()
 const vector<Polygon>& BSPNode::polygons() const
 {
 	return _on_list;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+	
+bool BSPNode::traverse(bool frontfirst, const Point& eye, BSPNode::Callback callback, void* data)
+{
+	if (is_leaf())
+		return callback(this,data);
+	else
+	{
+		float d = _plane.n.dot(eye) - _plane.d;
+		if (!frontfirst)
+			d = -d;
+		if (Utility::is_zero(d))
+		{
+			//printf("BSPNode(%p): Traversing front\n",this);
+			if (!_front->traverse(frontfirst,eye,callback,data)) return false;
+			//printf("BSPNode(%p): Traversing back\n",this);
+			if (!_back->traverse(frontfirst,eye,callback,data)) return false;
+		}
+		else if (d > 0)
+		{
+			//printf("BSPNode(%p): Traversing front\n",this);
+			if (!_front->traverse(frontfirst,eye,callback,data)) return false;
+			//printf("BSPNode(%p): Calling callback\n",this);
+			if (!callback(this,data)) return false;
+			//printf("BSPNode(%p): Traversing back\n",this);
+			if (!_back->traverse(frontfirst,eye,callback,data)) return false;
+		}
+		else
+		{
+			//printf("BSPNode(%p): Traversing back\n",this);
+			if (!_back->traverse(frontfirst,eye,callback,data)) return false;
+			//printf("BSPNode(%p): Calling callback\n",this);
+			if (!callback(this,data)) return false;
+			//printf("BSPNode(%p): Traversing front\n",this);
+			if (!_front->traverse(frontfirst,eye,callback,data)) return false;
+		}
+	}
+	return true;
 }

@@ -35,9 +35,7 @@ BSPTree::BSPTree()
 BSPTree::~BSPTree()
 {
 	// clear all tree nodes
-	clear();
-
-	_root = NULL;
+	delete _root;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -49,26 +47,13 @@ void BSPTree::build(vector<Polygon> &list)
 
 	// iterate through the randomized list and add each element to the tree
 	vector<Polygon>::iterator iter = list.begin();
-	while (iter != list.end()) {
-		_add_polygon_to_subtree(_root, *iter);
-
-		++iter;
-	}
-}
-
-void BSPTree::add_polygon(const Polygon &polygon)
-{
-	// just a wrapper for the private helper function
-	_add_polygon_to_subtree(_root, polygon);
+	while (iter != list.end())
+		_root->add_polygon(*iter++);
 }
 
 void BSPTree::clear()
 {
-	_clear_subtree(_root);
-
-	// now the root node has been released, allocate a new, empty one for it
-	// it is marked as 'out', as usual
-	_root = new BSPNode(true);
+	_root->clear();
 }
 
 void BSPTree::traverse(const Point &pov,
@@ -93,7 +78,7 @@ void BSPTree::get_polygons(vector<Polygon> &list)
 BSPTree::PositionType BSPTree::get_position(const Polygon &polygon) const
 {
 	// just another wrapper of a private helper function
-	return _check_position(_root, polygon);
+	//return _check_position(_root, polygon);
 }
 
 BSPTree::PositionType BSPTree::get_position(const Point &point) const
@@ -102,64 +87,6 @@ BSPTree::PositionType BSPTree::get_position(const Point &point) const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-
-void BSPTree::_add_polygon_to_subtree(BSPNode *root, const Polygon &polygon)
-{
-	// first check if the polygon should be added to the root of the subtree
-	if (root->is_leaf()) {
-		// the root node is empty, just add the polygon to it
-		root->convert(polygon);
-	} else {
-		// partitioning plane
-		Polygon plane = root->plane();
-
-		if (Utility::coplanar(polygon, plane)) {
-			// the polygon is on the plane of the root node
-			root->add_polygon(polygon);
-		} else if (Utility::before(polygon, plane)) {
-			// then decide which subspace it belongs
-			// the polygon is in front of the partitioning plane
-			// so it goes to the 'front' subtree
-			_add_polygon_to_subtree(root->front(), polygon);
-		} else if (Utility::behind(polygon, plane)) {
-			// the polygon is behind the partitioning plane
-			// so it goest to the 'back' subtree
-			_add_polygon_to_subtree(root->back(), polygon);
-		} else {
-			// split the polygon if it spans the partition plane
-			vector<Polygon> front_set;
-			vector<Polygon> back_set;
-
-			Utility::split_polygon(polygon, plane, front_set, back_set);
-
-			// add fragments to the front subtree
-			vector<Polygon>::iterator iter_front = front_set.begin();
-			while (iter_front != front_set.end()) {
-				_add_polygon_to_subtree(root->front(), *iter_front);
-				iter_front++;
-			}
-
-			// add fragments to the back subtree
-			vector<Polygon>::iterator iter_back = back_set.begin();
-			while (iter_back != back_set.end()) {
-				_add_polygon_to_subtree(root->back(), *iter_back);
-				iter_back++;
-			}
-		}
-	}
-}
-
-void BSPTree::_clear_subtree(BSPNode *root)
-{
-	if (root != NULL) {
-		// clear the two subtrees first
-		_clear_subtree(root->front());
-		_clear_subtree(root->back());
-
-		// then release the root of the subtree itself
-		delete root;
-	}
-}
 
 void BSPTree::_visit_subtree_inorder(BSPNode *root, const Point &pov,
 		BSPTree::InorderCallback callback, void *user_data)
@@ -290,6 +217,11 @@ void BSPTree::_invoke_callback(BSPNode *node, const Polygon &polygon,
 
 	(*callback)(&ctx);
 }
+	
+bool BSPTree::traverse(const Point& eye, BSPNode::Callback callback, void* data)
+{
+	return _root->traverse(true,eye,callback,data);
+}
 
 void BSPTree::_collect_polygons(BSPNode *root, vector<Polygon> &list)
 {
@@ -305,46 +237,4 @@ void BSPTree::_collect_polygons(BSPNode *root, vector<Polygon> &list)
 		_collect_polygons(root->front(), list);
 		_collect_polygons(root->back(), list);
 	}
-}
-
-BSPTree::PositionType BSPTree::_check_position(BSPNode *root, 
-		const Polygon &polygon) const
-{
-	if (root->is_leaf()) {
-		if (root->out())
-			return OUTSIDE;
-		return INSIDE;
-	} else {
-		Polygon plane = root->plane();
-
-		if (Utility::coplanar(polygon, plane)) {
-			return ON_BOUNDARY;
-		} else if (Utility::before(polygon, plane)) {
-			return _check_position(root->front(), polygon);
-		} else if (Utility::behind(polygon, plane)) {
-			return _check_position(root->back(), polygon);
-		} 
-	}
-
-	return SPAN;
-}
-
-BSPTree::PositionType BSPTree::_check_position(BSPNode *root,
-		const Point &point) const
-{
-	if (root->is_leaf()) {
-		if (root->out())
-			return OUTSIDE;
-		return INSIDE;
-	} else {
-		Polygon plane = root->plane();
-
-		if (Utility::before(point, plane)) {
-			return _check_position(root->front(), point);
-		} else if (Utility::behind(point, plane)) {
-			return _check_position(root->back(), point);
-		}
-	}
-
-	return ON_BOUNDARY;
 }

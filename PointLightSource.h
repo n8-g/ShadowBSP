@@ -12,31 +12,16 @@
 #include "BSPTree.h"
 #include "BSPNode.h"
 
-struct Vector3d
-{
-	// the (x, y, z) coordinates
-	float x;
-	float y;
-	float z;
-    
-	// - constructors
-    Vector3d();
-	// this one requires specific values for the coordiantes
-	Vector3d(float x, float y, float z);
-    
-	// the copy constructor, which copys the valus from another Point object
-	Vector3d(const Vector3d &copy);
-};
 
 class PointLightSource
 {
     public:
         // - constructors
-        PointLightSource(const Point &position, const Vector3d &direction,const Vector3d &color);
+        PointLightSource(const Point &position, const Vector3d &direction,const Vector3d &color, int index);
     
         PointLightSource();
-    
-        void shadowGenerator(BSPTree *bspTree);
+		
+		void determineShadow(BSPNode* treeNode, BSPNode* shadowNode, Polygon& polygon);
     
         // Position of the light source
         Point position;
@@ -46,8 +31,9 @@ class PointLightSource
         Vector3d direction;
         // Color of the light source
         Vector3d color;
-        // Shadow Volume BSPTree for each light source
-        BSPTree SVBSPtree;
+		
+		// GL light index
+		int index;
 };
 
 

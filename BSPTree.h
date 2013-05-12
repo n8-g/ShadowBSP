@@ -33,13 +33,13 @@ public:
 	struct CallbackContext
 	{
 		// the point of view
-		Point pov;
+		Point* pov;
 
 		// the plane associated with the current node
-		Polygon plane;
+		Plane plane;
 
 		// the polygon being accessed
-		Polygon polygon;
+		Polygon* polygon;
 
 		// whether the current node is internal node or leaf node
 		bool is_leaf;
@@ -65,13 +65,13 @@ public:
 		// this is used to make sure a 'default' version of Polygon constructor
 		// isn't needed
 		CallbackContext(const Point &the_pov, 
-				const Polygon &the_plane, const Polygon &the_polygon, 
+				const Plane &the_plane, const Polygon &the_polygon, 
 				bool is_leaf, bool is_before, bool is_out);
 	};
 
 	// type of the callback function:
 	// 		void Callback(CallbackContext *ctx);
-	typedef void (*InorderCallback)(BSPTree::CallbackContext*);
+	typedef void (*InorderCallback)(BSPTree::CallbackContext* context);
 
 	enum PositionType {
 		OUTSIDE,
@@ -115,6 +115,8 @@ public:
 	// tree, or on any of the boundary planes, or span it
 	PositionType get_position(const Polygon &polygon) const;
 	PositionType get_position(const Point &point) const;
+	
+	bool traverse(const Point& eye, BSPNode::Callback callback, void* data);
 
 private:
 	// the root node of the tree

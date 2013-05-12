@@ -1,7 +1,7 @@
 OS = $(shell uname)
 
-SOURCE = BSPNode.cpp BSPTree.cpp Polygon.cpp PointLightSource.cpp Utility.cpp
-HEADERS = BSPNode.h BSPTree.h PointLightSource.h Polygon.h Utility.h
+SOURCE = BSPNode.cpp Polygon.cpp PointLightSource.cpp Utility.cpp
+HEADERS = BSPNode.h PointLightSource.h Polygon.h Utility.h
 LIBDIRS = -L/usr/X11/lib
 INCLUDE= -I/usr/X11/include
 ifeq ($(OS),Darwin)
@@ -14,7 +14,7 @@ endif
 CXXFLAG=-g
 
 
-BSP: $(SOURCE) $(HEADERS)
+BSP: $(SOURCE) $(HEADERS) Main.cpp
 	g++ $(CXXFLAG) -o $@ $(SOURCE) $(LIBDIR) $(INCLUDE) $(LIB) Main.cpp
 
 all: BSP tests
@@ -32,6 +32,9 @@ test3: $(SOURCE) $(HEADERS)
 	
 test4: $(SOURCE) $(HEADERS)
 	g++ $(CXXFLAG) -o $@ $(SOURCE) test4.cpp
-	
+
+debug: BSP
+	gdb --args BSP simple.scene
+		
 clean:
 	rm -rf *.o BSP test test2 test3 test4 *.dSYM

@@ -35,24 +35,32 @@ public:
 	// the Polygon will also represent the partition plane
 	void convert(const Polygon &polygon);
 
-	// - add a polygon(that is on the plane)
-	void add_polygon(const Polygon &polygon);
-
 	// get-xxx functions
 	BSPNode* 				front() const;		// those in front of the plane
 	BSPNode* 				back() const;		// those behind the plane
-
-    inline void set_front(BSPNode* front);
-    inline void set_back(BSPNode* back);
     
 	bool 					out() const;		// whether its cell is outside
 	bool					is_leaf() const;	// whether is a leave node
 
-	Polygon 				plane() const;		// the partitioning plane
+	const Plane& 				plane() const { return _plane; }		// the partitioning plane
 
 	std::vector<Polygon>&		polygons();			// the polygons on the plane
 	const std::vector<Polygon>& polygons() const;
-   
+
+	std::vector<Polygon>&		fragments() { return _fragments; }		
+	const std::vector<Polygon>& fragments() const { return _fragments; }
+	
+	void clear() { delete _front; delete _back; _front = NULL; _back = NULL; }
+	
+	void add_polygon(const Polygon &polygon);
+	
+	// Initializes fragments by copying them from polygons()
+	void init_fragments();
+	
+	typedef bool (*Callback) (BSPNode* node, void* data);
+	bool traverse(bool frontfirst, const Point& eye, BSPNode::Callback callback, void* param);
+	
+	void dump();
 private:
 	// the partitioning plane
 	//Polygon _plane;
@@ -60,6 +68,9 @@ private:
 	// the list of polygons that are on the plane.
 	// the partitioning plane will be the first polygon in the list
 	std::vector<Polygon> _on_list;
+	std::vector<Polygon> _fragments;
+	
+	Plane _plane;
 
 	// the two children
 	BSPNode *_front;
@@ -68,16 +79,5 @@ private:
 	// status flags
 	bool _is_outside;	// whether the cell of the node is outside
 };
-
-// - inline functions
-void BSPNode::set_front(BSPNode* front)
-{
-	this->_front = front;
-}
-
-void BSPNode::set_back(BSPNode* back)
-{
-	this->_back = back;
-}
 
 #endif

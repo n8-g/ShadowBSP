@@ -3,6 +3,36 @@
 #ifndef			CGEO_PROJECT_2_POLYGON_H
 #define			CGEO_PROJECT_2_POLYGON_H
 
+#include <vector>
+#include <math.h>
+#include <iostream>
+
+#define THRESHOLD 0.00001
+
+struct Point;
+
+struct Vector3d
+{
+	// the (x, y, z) coordinates
+	float x;
+	float y;
+	float z;
+    
+	// - constructors
+    Vector3d();
+	// this one requires specific values for the coordiantes
+	Vector3d(float x, float y, float z);
+    
+	// the copy constructor, which copys the valus from another Point object
+	Vector3d(const Vector3d &copy);
+	
+	float lengthsq() const { return x*x + y*y + z*z; }
+	float length() const { return sqrt(lengthsq()); }
+	Vector3d normalize() const { float l = length(); return Vector3d(x/l, y/l, z/l); }
+	float dot(const Vector3d& b) const { return x*b.x + y*b.y + z*b.z; }
+	Vector3d cross(const Vector3d& b) const { return Vector3d(y*b.z-z*b.y, z*b.x-x*b.z, x*b.y-y*b.x); }
+};
+
 /**
  * struct Point
  *
@@ -16,24 +46,34 @@
  *
  * Access to its coordinates is straightforward as all members are public
  **/
-struct Point
+struct Point : Vector3d
 {
-	// the (x, y, z) coordinates
-	float x;
-	float y;
-	float z;
-
 	// - constructors
 	// this one requires specific values for the coordiantes
-	Point(float x, float y, float z);
+	Point(float x, float y, float z) : Vector3d(x,y,z) {}
 
 	// the copy constructor, which copys the valus from another Point object
-	Point(const Point &copy);
+	Point(const Point &copy) : Vector3d(copy) {}
+	
+	
+	Vector3d operator-(const Point& b) const { return Vector3d(x-b.x,y-b.y,z-b.z); }
+	
+	Point interpolate(const Point& b, double t) const { return Point(x + (b.x-x)*t, y + (b.y-y)*t, z + (b.z-z)*t); }
 
-	// the 3rd one is unknown, for now
+
 };
+std::ostream& operator<< (std::ostream& stream, const Point& p);
+std::ostream& operator<< (std::ostream& stream, const Vector3d& v);
 
 ///////////////////////////////////////////////////////////////////////////////
+
+struct Plane
+{
+	Vector3d n;
+	float d;
+	Plane(const Vector3d& n, float d) : n(n), d(d) {}
+	Plane() : n(), d(0) { }
+};
 
 /**
  * class Polygon
@@ -65,49 +105,51 @@ class Polygon
 public:
 	// - constructors
 	// this one requires three vertices
-	Polygon(const Point &a, const Point &b, const Point &c);
+	Polygon(const Point &a, const Point &b, const Point &c) : _n((b-a).cross(c-b).normalize()) 
+	{
+		_points.push_back(a);
+		_points.push_back(b);
+		_points.push_back(c);
+	}
+	Polygon(const std::vector<Point>& points) : _points(points)
+	{
+		_n = (points[1]-points[0]).cross(points[2]-points[0]).normalize();
+	}
+	Polygon() {}
 	
 	// - copy constructor
-	Polygon(const Polygon &copy);
+	Polygon(const Polygon &copy): _points(copy._points), _n(copy._n), _lights(copy._lights) {}
 
 	// - accessor to the vertices
-	Point& 			operator[](int index);
-	const Point& 	operator[](int index) const;
+	Point& 			operator[](int index) { return _points[index]; }
+	const Point& 	operator[](int index) const { return _points[index]; }
+	int size() const { return _points.size(); }
+	
+	void clear_lights() { _lights = 0; }
+	bool has_light(int light) { return _lights & (1 << light); }
+	void add_light(int light) { _lights |= (1 << light); }
+	void remove_light(int light) { _lights &= ~(1 << light); }
+	bool is_lit() { return _lights != 0; }
+	
+	const Vector3d& normal() const { return _n; }
+	
+	Plane plane() const { return Plane(_n,_points[0].dot(_n)); }
+	
+	void split(Polygon& front, Polygon& back, const Vector3d& normal, float dist) const;
 
-	// - get-property methods
-	inline bool is_lit() const;
-
-	// - set-property methods
-	inline void set_lit(bool is_lit);
-    
-    /*
-    bool is_valid()
-    {
-        if (this->_a && this->_b && this->_c)
-            return true;
-        return false;
-    }*/
 
 private:
+	// For splitting
+	Polygon(const std::vector<Point>& points, const Polygon& original) : _points(points), _n(original._n), _lights(original._lights) {}
+	
 	// the three vertices
 	//Point _vertices[3];
-	Point _a;
-	Point _b;
-	Point _c;
+	std::vector<Point> _points;
+	Vector3d _n;
+	unsigned int _lights; // Bitmask of lights
 
 	// the status of being lit
-	bool _is_lit;
 };
-
-// - inline functions
-bool Polygon::is_lit() const
-{
-	return _is_lit;
-}
-
-void Polygon::set_lit(bool is_lit)
-{
-	_is_lit = is_lit;
-}
+std::ostream& operator<< (std::ostream& stream, const Polygon& p);
 
 #endif
