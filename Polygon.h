@@ -7,29 +7,29 @@
 #include <math.h>
 #include <iostream>
 
-#define THRESHOLD 0.00001
+#define THRESHOLD 0.0000001
 
 struct Point;
 
 struct Vector3d
 {
 	// the (x, y, z) coordinates
-	float x;
-	float y;
-	float z;
+	double x;
+	double y;
+	double z;
     
 	// - constructors
-    Vector3d();
+    Vector3d() { }
 	// this one requires specific values for the coordiantes
-	Vector3d(float x, float y, float z);
-    
+	Vector3d(double x, double y, double z) : x(x), y(y), z(z) { }
+ 
 	// the copy constructor, which copys the valus from another Point object
-	Vector3d(const Vector3d &copy);
+	Vector3d(const Vector3d &copy) : x(copy.x), y(copy.y), z(copy.z) { }
 	
-	float lengthsq() const { return x*x + y*y + z*z; }
-	float length() const { return sqrt(lengthsq()); }
-	Vector3d normalize() const { float l = length(); return Vector3d(x/l, y/l, z/l); }
-	float dot(const Vector3d& b) const { return x*b.x + y*b.y + z*b.z; }
+	double lengthsq() const { return x*x + y*y + z*z; }
+	double length() const { return sqrt(lengthsq()); }
+	Vector3d normalize() const { double l = length(); return Vector3d(x/l, y/l, z/l); }
+	double dot(const Vector3d& b) const { return x*b.x + y*b.y + z*b.z; }
 	Vector3d cross(const Vector3d& b) const { return Vector3d(y*b.z-z*b.y, z*b.x-x*b.z, x*b.y-y*b.x); }
 };
 
@@ -50,7 +50,7 @@ struct Point : Vector3d
 {
 	// - constructors
 	// this one requires specific values for the coordiantes
-	Point(float x, float y, float z) : Vector3d(x,y,z) {}
+	Point(double x, double y, double z) : Vector3d(x,y,z) {}
 
 	// the copy constructor, which copys the valus from another Point object
 	Point(const Point &copy) : Vector3d(copy) {}
@@ -70,8 +70,8 @@ std::ostream& operator<< (std::ostream& stream, const Vector3d& v);
 struct Plane
 {
 	Vector3d n;
-	float d;
-	Plane(const Vector3d& n, float d) : n(n), d(d) {}
+	double d;
+	Plane(const Vector3d& n, double d) : n(n), d(d) {}
 	Plane() : n(), d(0) { }
 };
 
@@ -135,7 +135,7 @@ public:
 	
 	Plane plane() const { return Plane(_n,_points[0].dot(_n)); }
 	
-	void split(Polygon& front, Polygon& back, const Vector3d& normal, float dist) const;
+	void split(Polygon& front, Polygon& back, const Vector3d& normal, double dist) const;
 
 
 private:

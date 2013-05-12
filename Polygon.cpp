@@ -8,13 +8,13 @@ using namespace std;
 ///////////////////////////////////////////////////////////////////////////////
 
 // Splits a polygon by a plane defined by normal and dist and fills 
-void Polygon::split(Polygon& front, Polygon& back, const Vector3d& normal, float distance) const
+void Polygon::split(Polygon& front, Polygon& back, const Vector3d& normal, double distance) const
 {
 	int i = 0;
 	int size = _points.size();
 	front = Polygon(vector<Point>(),*this);
 	back = Polygon(vector<Point>(),*this);
-	float lastdist, dist, lasti;
+	double lastdist, dist, lasti;
 	int nfront=0, nback=0;
 	lastdist = _points[lasti = size-1].dot(normal) - distance;
 	for (i = 0; i < size; lasti = i++, lastdist = dist) // Walk around the polygon
@@ -52,7 +52,7 @@ void Polygon::split(Polygon& front, Polygon& back, const Vector3d& normal, float
 	if (!nback) back._points.clear(); // All points in back are planar, just clear it
 	/*
 	Point points[3] = {_a,_b,_c};
-	float distances[3] = {_a.dot(normal),_b.dot(normal),_c.dot(normal)};
+	double distances[3] = {_a.dot(normal),_b.dot(normal),_c.dot(normal)};
 	if (distances[0] >= dist-THRESHOLD && distances[1] >= dist-THRESHOLD && distances[2] >= dist-THRESHOLD) // No need to split
 		front.push_back(*this);
 	else if (distances[0] <= dist+THRESHOLD && distances[1] <= dist+THRESHOLD && distances[2] <= dist+THRESHOLD) // No need to split

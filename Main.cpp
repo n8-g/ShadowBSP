@@ -10,6 +10,7 @@
 
 #include "BSPNode.h"
 #include "PointLightSource.h"
+#include "Utility.h"
 
 #define WIDTH 800
 #define HEIGHT 600
@@ -58,6 +59,9 @@ void Keyboard(unsigned char key, int x, int y)
 		singleLight = !singleLight;
 		UpdateLighting();
 		break;
+	case '`':
+		lightSource = -1;
+		break;
 	case '1':
 	case '2':
 	case '3':
@@ -75,6 +79,7 @@ void Keyboard(unsigned char key, int x, int y)
 	}
 	keystate[key] = true;
 }
+
 void KeyboardUp(unsigned char key, int x, int y)
 {
 	keystate[key] = false;
@@ -140,7 +145,7 @@ bool GenerateShadows(BSPNode* node, void* data)
 	{
 	    Polygon& p = fragments[i];
 		Vector3d normal = p.normal();
-		cout << "Generating shadows for " << p << endl;
+		//cout << "Generating shadows for " << p << endl;
 		float dot = normal.dot(pls->position-p[0]);
 	    if(dot > 0) // Facing the light
 			pls->determineShadow(node,&shadowTree,p);
@@ -151,7 +156,7 @@ bool GenerateShadows(BSPNode* node, void* data)
 
 int UpdateLighting(void)
 {
-	cout << "Updating lighting" << endl;
+	//cout << "Updating lighting" << endl;
 	tree.init_fragments();
     for (int i = 0; i < lightSources.size(); i++) {
 		if (singleLight && i != lightSource)
@@ -181,12 +186,21 @@ void DrawGraphics (void)
 	if (keystate['q']) move_vector[1] = -1;
 	else if (keystate['e']) move_vector[1] = 1;
 
-	if (lightSource < lightSources.size() && (move_vector[0] || move_vector[1] || move_vector[2]))
+	if (move_vector[0] || move_vector[1] || move_vector[2])
 	{
-		lightSources[lightSource].position.x += move_vector[0] * MOVESPEED * delta;
-		lightSources[lightSource].position.y += move_vector[1] * MOVESPEED * delta;
-		lightSources[lightSource].position.z += move_vector[2] * MOVESPEED * delta;
-		UpdateLighting();
+		if (lightSource < 0)
+		{
+			target[0] += move_vector[0] * MOVESPEED * delta;
+			target[1] += move_vector[1] * MOVESPEED * delta;
+			target[2] += move_vector[2] * MOVESPEED * delta;
+		}
+		else if (lightSource < lightSources.size())
+		{
+			lightSources[lightSource].position.x += move_vector[0] * MOVESPEED * delta;
+			lightSources[lightSource].position.y += move_vector[1] * MOVESPEED * delta;
+			lightSources[lightSource].position.z += move_vector[2] * MOVESPEED * delta;
+			UpdateLighting();
+		}
 	}
 	
     //for(int i=0; i<lightSources.size(); i++)
@@ -229,6 +243,49 @@ void DrawGraphics (void)
 	glutSwapBuffers();
 }
 
+vector<Polygon> ParseOBJ(const char* objFile)
+{
+	double x, y, z;
+	vector<Point> points;
+	vector<Polygon> polygons;
+	vector<Point> polypoints;
+	char buffer[256];
+	char* ptr,*end;
+	int index;
+	FILE* file = fopen(objFile,"r");
+	
+	while (fgets(buffer,256,file))
+	{
+		switch (*buffer)
+		{
+		case 'v':
+			if (buffer[1] == 'n') continue; // ignore normals
+			x = strtod(buffer+1,&ptr);
+			y = strtod(ptr,&ptr);
+			z = strtod(ptr,&ptr);
+			printf("v %f %f %f\n",x,y,z);
+			points.push_back(Point(x,y,z));
+			break;
+		case 'f':
+			polypoints.clear();
+			ptr = buffer+1;
+			printf("f ");
+			while(true)
+			{
+				index = strtoul(ptr,&end,0);
+				if (!index) break; // If nothing was parsed, break
+				printf("%d ",index);
+				ptr = end;
+				while(*ptr && !isspace(*ptr)) ++ptr; // Skip to next vertex, ignoring texture and normals
+				polypoints.push_back(points[index-1]);
+			}
+			printf("\n");
+			polygons.push_back(polypoints);
+			break;
+		}
+	}
+	return polygons;
+}
 
 
 int LoadScene(const char* sceneFile)
@@ -261,12 +318,10 @@ int LoadScene(const char* sceneFile)
 		Polygon p(points[id1], points[id2], points[id3]);
 		polygons.push_back(p);
 	}
+
+	Utility::permute_list(polygons);
     
-	// begin building the BSP tree
-	for (size_t i = 0; i < polygons.size(); i++) {
-        cout << polygons[i] << endl;
-		tree.add_polygon(polygons[i]);
-	}
+	tree.add_polygons(polygons);
 	tree.dump();
 
     //tree.traverse(viewPoint, traverse_test, NULL);
@@ -286,6 +341,7 @@ int LoadScene(const char* sceneFile)
 	
     
     fin.close();
+	return 0;
 }
 
 int main (int argc, char* argv[])
@@ -297,6 +353,12 @@ int main (int argc, char* argv[])
 	}
 	
 	LoadScene(argv[1]);
+	if (argv[2])
+	{
+		vector<Polygon> polygons = ParseOBJ(argv[2]);
+		Utility::permute_list(polygons);
+		tree.add_polygons(polygons);
+	}
 	
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);

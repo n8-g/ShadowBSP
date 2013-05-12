@@ -80,37 +80,37 @@ void BSPNode::add_polygon(const Polygon& polygon)
 	// first check if the polygon should be added to the root of the subtree
 	if (is_leaf()) {
 		// the root node is empty, just add the polygon to it
-		printf("BSPNode(%p): converting leaf\n",this);
+		//printf("BSPNode(%p): converting leaf\n",this);
 		convert(polygon);
 	} else {
 		// partitioning plane
-		float d;
+		double d;
 		int i;
 		int front=0,back=0;
 		for (i = 0; i < polygon.size() && (!front || !back); ++i)
 		{
-			float d = _plane.n.dot(polygon[i]) - _plane.d;
+			double d = _plane.n.dot(polygon[i]) - _plane.d;
 			if (d > THRESHOLD) ++front;
 			if (d < THRESHOLD) ++back;
 		}
 		if (!front && !back) // All points lie on the plane
 		{
-			printf("BSPNode(%p): adding planar polygon\n",this);
+			//printf("BSPNode(%p): adding planar polygon\n",this);
 			_on_list.push_back(polygon);
 		}
 		else if (!back) // All points in front of the plane
 		{
-			printf("BSPNode(%p): polygon to front\n",this);
+			//printf("BSPNode(%p): polygon to front\n",this);
 			_front->add_polygon(polygon);
 		}
 		else if (!front) // All points behind the plane
 		{
-			printf("BSPNode(%p): polygon to back\n",this);
+			//printf("BSPNode(%p): polygon to back\n",this);
 			_back->add_polygon(polygon);
 		}
 		else // Polygon crosses the plane
 		{
-			printf("BSPNode(%p): splitting polygon by plane (%g,%g,%g,%g)\n",this,_plane.n.x,_plane.n.y,_plane.n.z,_plane.d);
+			//printf("BSPNode(%p): splitting polygon by plane (%g,%g,%g,%g)\n",this,_plane.n.x,_plane.n.y,_plane.n.z,_plane.d);
 			// split the polygon if it spans the partition plane
 			Polygon front,back;
 
@@ -122,8 +122,13 @@ void BSPNode::add_polygon(const Polygon& polygon)
 			if (back.size())
 				_back->add_polygon(back);
 		}
-		printf("BSPNode(%p): done\n",this);
+		//printf("BSPNode(%p): done\n",this);
 	}
+}
+void BSPNode::add_polygons(const vector<Polygon>& polygons)
+{
+	for (int i = 0; i < polygons.size(); ++i)
+		add_polygon(polygons[i]);
 }
 
 
@@ -166,7 +171,7 @@ bool BSPNode::traverse(bool frontfirst, const Point& eye, BSPNode::Callback call
 		return callback(this,data);
 	else
 	{
-		float d = _plane.n.dot(eye) - _plane.d;
+		double d = _plane.n.dot(eye) - _plane.d;
 		if (!frontfirst)
 			d = -d;
 		if (Utility::is_zero(d))

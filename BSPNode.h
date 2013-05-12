@@ -54,6 +54,8 @@ public:
 	
 	void add_polygon(const Polygon &polygon);
 	
+	void add_polygons(const std::vector<Polygon>& polygons);
+	
 	// Initializes fragments by copying them from polygons()
 	void init_fragments();
 	
