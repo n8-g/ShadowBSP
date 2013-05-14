@@ -5,10 +5,13 @@
 
 using namespace std;
 
+
+#define COPLANAR_THRESHOLD THRESHOLD*0.001
 ///////////////////////////////////////////////////////////////////////////////
 
 Polygon::Polygon(const Point* points, int npoints) : _points(alloc_points(npoints)), _size(npoints), _n(0,0,0)
 {
+	double x=0,y=0,z=0;
 	// Newell's Method
 	for (int i = 0; i < npoints; ++i)
 	{
@@ -17,8 +20,14 @@ Polygon::Polygon(const Point* points, int npoints) : _points(alloc_points(npoint
 		_n.x += (p1.y-p2.y) * (p1.z+p2.z);
 		_n.y += (p1.z-p2.z) * (p1.x+p2.x);
 		_n.z += (p1.x-p2.x) * (p1.y+p2.y);
+		x += p1.x;
+		y += p1.y;
+		z += p1.z;
 	}
 	_n = _n.normalize();
+	_d = _n.dot(Point(x/npoints,y/npoints,z/npoints));
+	if (_d != _d)
+		cout << "NAN" << endl;
 }
 
 // Splits a fragment by a plane defined by normal and dist and fills 
@@ -26,52 +35,52 @@ void Polygon::split(Polygon& front, Polygon& back, const Vector3d& normal, doubl
 {
 	int i = 0;
 	double lastdist, dist;
-	Point* frontpts = alloc_points(_size+2);
-	Point* backpts = alloc_points(_size+2);
+	Point* frontpts = alloc_points(_size*2);
+	Point* backpts = alloc_points(_size*2);
 	Point* frontptr = frontpts;
 	Point* backptr = backpts;
 	int nfront=0, nback=0;
-	int lasti;
+	int lasti = _size-1;
+	int crosses = 0;
 	front._size = 0;
 	back._size = 0;
-	lastdist = _points[lasti = _size-1].dot(normal) - distance;
+	if (normal.dot(_n) == 1 && distance == _d)
+		return;
+	lastdist = _points[lasti].dot(normal) - distance;
 	for (i = 0; i < _size; lasti = i++, lastdist = dist) // Walk around the polygon
 	{
 		dist = _points[i].dot(normal) - distance; // Check which side of the plane this point is on
-		if (dist < -THRESHOLD) // Back
+		
+		if (dist > COPLANAR_THRESHOLD) // In front
 		{
-			if (lastdist > THRESHOLD) // Last one was in front, add a split point
+			if (lastdist < -COPLANAR_THRESHOLD) // from back
 			{
-				*frontptr++ = *backptr++ = _points[i].interpolate(_points[lasti],dist/(dist-lastdist));
-				//printf("lengthsq: %g, %g\n",(frontptr[-1]-_points[i]).lengthsq(),(frontptr[-1]-_points[lasti]).lengthsq());
+				double d = dist/(dist-lastdist);
+				*frontptr++ = *backptr++ = _points[i].interpolate(_points[lasti],d);
 			}
-			++nback;
-			*backptr++ = _points[i];
-		}
-		else if (dist > THRESHOLD) // Front
-		{
-			if (lastdist < -THRESHOLD) // Last one was in back, add a split point
-			{
-				*frontptr++ = *backptr++ = _points[i].interpolate(_points[lasti],dist/(dist-lastdist));
-				//printf("lengthsq: %g, %g\n",(frontptr[-1]-_points[i]).lengthsq(),(frontptr[-1]-_points[lasti]).lengthsq());
-			}
+			*frontptr++ = _points[i];
 			++nfront;
-			*frontptr++ = _points[i];
 		}
-		else // Its on the plane, add it to both polygons
+		else if (dist < -COPLANAR_THRESHOLD) // In back
 		{
-			*frontptr++ = _points[i];
+			if (lastdist > COPLANAR_THRESHOLD) // from front
+			{
+				double d = dist/(dist-lastdist);
+				*frontptr++ = *backptr++ = _points[i].interpolate(_points[lasti],d);
+			}
 			*backptr++ = _points[i];
+			++nback;
 		}
+		else *backptr++ = *frontptr++ = _points[i];
 	}
-	if (nfront)
+	if (nfront && frontptr-frontpts >= 3)
 	{
 		front._points = frontpts;
 		front._size = frontptr-frontpts;
 		front._n = _n;
 	}
 	else free(frontpts);
-	if (nback)
+	if (nback && backptr-backpts >= 3)
 	{
 		back._points = backpts;
 		back._size = backptr-backpts;

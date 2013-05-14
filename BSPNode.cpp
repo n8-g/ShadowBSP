@@ -106,9 +106,15 @@ void BSPNode::add_polygon(const Polygon& polygon)
 
 		polygon.split(front, back, _plane.n, _plane.d);
 		
-		if (!front.size() && !back.size())
+		if (!front.size() && !back.size()) // Coplanarish polygon
 		{
 			_back->add_polygon(polygon);
+			//_on_list.push_back(polygon);
+			// Find out if the polygon is really in front of or behind the plane
+			//if ((_plane.n.dot(polygon.normal()) < 0 ? _plane.d + polygon.distance() : _plane.d - polygon.distance()) < 0)
+				//_back->add_polygon(polygon);
+			//else
+			//	_on_list.push_back(polygon);
 		}
 		else
 		{
