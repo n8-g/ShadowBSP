@@ -100,42 +100,22 @@ void BSPNode::add_polygon(const Polygon& polygon)
 		convert(polygon);
 	} else {
 		// partitioning plane
-		double d;
-		int i;
-		int front=0,back=0;
-		for (i = 0; i < polygon.size() && (!front || !back); ++i)
-		{
-			double d = _plane.n.dot(polygon[i]) - _plane.d;
-			if (d > THRESHOLD) ++front;
-			if (d < THRESHOLD) ++back;
-		}
-		if (!front && !back) // All points lie on the plane
-		{
-			//printf("BSPNode(%p): adding planar polygon\n",this);
-			_on_list.push_back(polygon);
-		}
-		else if (!back) // All points in front of the plane
-		{
-			//printf("BSPNode(%p): polygon to front\n",this);
-			_front->add_polygon(polygon);
-		}
-		else if (!front) // All points behind the plane
-		{
-			//printf("BSPNode(%p): polygon to back\n",this);
-			_back->add_polygon(polygon);
-		}
-		else // Polygon crosses the plane
-		{
 			//printf("BSPNode(%p): splitting polygon by plane (%g,%g,%g,%g)\n",this,_plane.n.x,_plane.n.y,_plane.n.z,_plane.d);
 			// split the polygon if it spans the partition plane
-			Polygon front,back;
+		Polygon front,back;
 
-			polygon.split(front, back, _plane.n, _plane.d);
-			
-			if (front.size() > 2)
+		polygon.split(front, back, _plane.n, _plane.d);
+		
+		if (!front.size() && !back.size())
+		{
+			_back->add_polygon(polygon);
+		}
+		else
+		{
+			if (front.size())
 				_front->add_polygon(front);
-			
-			if (back.size() > 2)
+		
+			if (back.size())
 				_back->add_polygon(back);
 		}
 		//printf("BSPNode(%p): done\n",this);
@@ -180,14 +160,14 @@ bool BSPNode::traverse(bool frontfirst, const Point& eye, BSPNode::Callback call
 		double d = _plane.n.dot(eye) - _plane.d;
 		if (!frontfirst)
 			d = -d;
-		if (Utility::is_zero(d))
+		/*if (Utility::is_zero(d))
 		{
 			//printf("BSPNode(%p): Traversing front\n",this);
 			if (!_front->traverse(frontfirst,eye,callback,data)) return false;
 			//printf("BSPNode(%p): Traversing back\n",this);
 			if (!_back->traverse(frontfirst,eye,callback,data)) return false;
 		}
-		else if (d > 0)
+		else*/ if (d > 0)
 		{
 			//printf("BSPNode(%p): Traversing front\n",this);
 			if (!_front->traverse(frontfirst,eye,callback,data)) return false;

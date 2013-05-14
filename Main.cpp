@@ -22,31 +22,32 @@
 
 using namespace std;
 
-static double dist = 5, direction, pitch = M_PI/4;
-static double target[3] = { 0, 0, 0 };
-static double position[3];
-static int lastx,lasty;
-static int buttonPressed;
-static vector<PointLightSource> lightSources;
-static BSPNode tree;
-static BSPNode shadowTree;
-static bool enableLighting = true;
-static bool keystate[256];
-static int lightSource = 0;
-static double elapsed;
-static bool enableLines = true;
-static bool frontToBack = false;
-static bool singleLight = false;
-static int nframes;
-static int frame_timer;
+static double dist = 5, direction, pitch = M_PI/4; // 'Eye' location
+static double target[3] = { 0, 0, 0 }; // Target location
+static double position[3]; // Caculated position of eye
+static int lastx,lasty; // Last x and y for dragging the mouse
+static int buttonPressed; // The current mouse button 
+static vector<PointLightSource> lightSources; // A list of point light sources
+static BSPNode tree; // The scene BSP tree
+static BSPNode shadowTree; // The shadow BSP tree. Cleared for each light source
+static bool enableLighting = true; // Enables GL lighting
+static bool keystate[256]; // The keyboard state, for w,s,a,d,+, and -
+static int lightSource = 0; // The current light source (the one to move and draw in single light mode) 
+static double elapsed; // Time of last frame
+static bool enableLines = true; // Enables outlines
+static bool frontToBack = false; // Controls direction of scene BSP traversal
+static bool singleLight = false; // Enables single light mode
+static int nframes; // Number of frames in the last second
+static int frame_timer; // 1 second timer for frame rate
 
-void UpdateLighting(void);
+void UpdateLighting(void); // Regenerates the shaded/lit fragments based on light position
 
 void Keyboard(unsigned char key, int x, int y)
 {
+	// Keyboard controls
 	switch (key)
 	{
-	case 27:
+	case 27: // Escape
 		exit(0);
 	case 'o':
 		enableLines = !enableLines;
@@ -65,6 +66,9 @@ void Keyboard(unsigned char key, int x, int y)
 	case '`':
 		lightSource = -1;
 		break;
+	case 'u':
+		UpdateLighting();
+		break;
 	case '1':
 	case '2':
 	case '3':
@@ -80,50 +84,52 @@ void Keyboard(unsigned char key, int x, int y)
 			UpdateLighting();
 		break;
 	}
+	// Store the key state for later
 	keystate[key] = true;
 }
 
 void KeyboardUp(unsigned char key, int x, int y)
 {
+	// Reset the key state
 	keystate[key] = false;
 }
 void Motion(int x, int y)
 {
-	if (buttonPressed == 0)
+	if (buttonPressed == 0) // We're dragging
 	{
-		direction -= (x - lastx)*XSENSITIVITY;
-		while (direction > 2*M_PI)
+		direction -= (x - lastx)*XSENSITIVITY; // Update direction
+		while (direction > 2*M_PI) // Wrap direction
 			direction -= 2*M_PI;
 		while (direction < 0)
 			direction += 2*M_PI;
-		pitch += (y - lasty)*YSENSITIVITY;
-		if (pitch > M_PI/2)
+		pitch += (y - lasty)*YSENSITIVITY; // Update pitch
+		if (pitch > M_PI/2) // Clamp pitch
 			pitch = M_PI/2;
 		if (pitch < -M_PI/2)
 			pitch = -M_PI/2;
 	}
-	lastx = x;
+	lastx = x; // Update mouse position
 	lasty = y;
 }
 void Mouse(int button, int state, int x, int y)
 {
-	buttonPressed = button;
+	buttonPressed = button; // Record current button
 	lastx = x;
 	lasty = y;
 }
 
 void DrawLightNode (LightNode* node)
 {
-	if (node->illuminated && node->shadowed)
+	if (node->illuminated && node->shadowed) // Interior node
 	{
-		DrawLightNode(node->shadowed);
-		glEnable(GL_LIGHT0+node->light);
-		DrawLightNode(node->illuminated);
-		glDisable(GL_LIGHT0+node->light);
+		DrawLightNode(node->shadowed); // Draw the part of the tree not illuminated by this light
+		glEnable(GL_LIGHT0+node->light); // Enable the light
+		DrawLightNode(node->illuminated); // Draw the part of the tree illuminated by this light
+		glDisable(GL_LIGHT0+node->light); // Disable the light
 	}
 	else
 	{
-		glBegin(GL_TRIANGLES);
+		glBegin(GL_TRIANGLES); // Draw each polygon, tesselating them as we go. Since they're convex, we can connect any edge to the first vertex to produce a valid triangle
 		for (int i = 0; i < node->fragments.size(); ++i)
 		{
 			Polygon& fragment = node->fragments[i];
@@ -137,7 +143,7 @@ void DrawLightNode (LightNode* node)
 			}
 		}
 		glEnd();
-		if (enableLines)
+		if (enableLines) // Draw the outlines if needed
 		{
 			glColor3f(0,0,0);
 			for (int i = 0; i < node->fragments.size(); ++i)
@@ -152,18 +158,18 @@ void DrawLightNode (LightNode* node)
 	}
 }
 
-bool DrawFragments (BSPNode* node, void* data)
+bool DrawFragments (BSPNode* node, void* data) // Drawing callback
 {
-	if (node->display_list != -1)
+	if (node->display_list != -1) // Good, we have a display list (cached commands). Call it
 		glCallList(node->display_list);
 	else
-		DrawLightNode(&node->light_node());
+		DrawLightNode(&node->light_node()); // Draw directly
 	return true;
 }
 
 bool GenerateShadows(LightNode* node, PointLightSource *pls)
 {
-	if (node->illuminated && node->shadowed)
+	if (node->illuminated && node->shadowed) // We're an interior node. Generate shadows for children
 	{
 		GenerateShadows(node->illuminated,pls);
 		GenerateShadows(node->shadowed,pls);
@@ -173,6 +179,7 @@ bool GenerateShadows(LightNode* node, PointLightSource *pls)
 	node->light = pls->index;
 	node->illuminated = new LightNode();
 	node->shadowed = new LightNode();
+	//Utility::permute_list(node->fragments);
 	for (int i = 0; i < node->fragments.size(); ++i)
 	{
 	    Polygon& p = node->fragments[i];
@@ -183,14 +190,15 @@ bool GenerateShadows(LightNode* node, PointLightSource *pls)
 			pls->determineShadow(node->illuminated->fragments,node->shadowed->fragments,&shadowTree,p);
 		else node->shadowed->fragments.push_back(p); // Keep it in the tree in case another light illuminates it
 	}
-	node->fragments.clear();
+	node->fragments.clear(); // Our fragments are now in the leaves
 	return true;
 }
 
+// Shadow generation callback
 bool GenerateShadows(BSPNode* node, void* data)
 {
-	GenerateShadows(&node->light_node(),(PointLightSource*) data);
-	if (node->display_list == -1)
+	GenerateShadows(&node->light_node(),(PointLightSource*) data); 
+	if (node->display_list == -1) // Create the display list if necessary
 		node->display_list = glGenLists(1);
 	// Compile a display list for rendering later. This way, GL can optomize it
 	glNewList(node->display_list, GL_COMPILE);
@@ -199,6 +207,7 @@ bool GenerateShadows(BSPNode* node, void* data)
 	return true;
 }
 
+// Recalculates all shadows and as a bonus, updates a display list for drawing fragments in each BSP node
 void UpdateLighting(void)
 {
 	int start = glutGet(GLUT_ELAPSED_TIME);
@@ -207,13 +216,13 @@ void UpdateLighting(void)
     for (int i = 0; i < lightSources.size(); i++) {
 		if (singleLight && i != lightSource)
 			continue;
-		shadowTree.clear();
 		PointLightSource& light = lightSources[i];
 	    tree.traverse(true, lightSources[i].position, GenerateShadows, &lightSources[i]);
+		shadowTree.clear();
 	}
 	printf("Lighting updated in %d milliseconds\n",glutGet(GLUT_ELAPSED_TIME)-start);
 }
-
+// Frame procedure
 void DrawGraphics (void)
 {
 	int time = glutGet(GLUT_ELAPSED_TIME);
@@ -221,17 +230,18 @@ void DrawGraphics (void)
 	double move_vector[3] = { 0, 0, 0 };
 	elapsed = time;
 	++nframes;
-	if (frame_timer < glutGet(GLUT_ELAPSED_TIME))
+	if (frame_timer < glutGet(GLUT_ELAPSED_TIME)) // Calculate fps
 	{
 		printf("%d frames per second\n",nframes);
 		frame_timer = glutGet(GLUT_ELAPSED_TIME)+1000;
 		nframes = 0;
 	}
+	// Time-based controls
 	if (keystate['-']) dist += delta * MOVESPEED;
 	else if (keystate['=']) dist -= delta * MOVESPEED;
-	position[0] = sin(direction)*cos(pitch)*dist;
-	position[1] = sin(pitch)*dist;
-	position[2] = cos(direction)*cos(pitch)*dist;
+	position[0] = sin(direction)*cos(pitch)*dist + target[0];
+	position[1] = sin(pitch)*dist + target[1];
+	position[2] = cos(direction)*cos(pitch)*dist + target[2];
     
 	if (keystate['w']) move_vector[2] = -1;
 	else if (keystate['s']) move_vector[2] = 1;
@@ -240,7 +250,7 @@ void DrawGraphics (void)
 	if (keystate['q']) move_vector[1] = -1;
 	else if (keystate['e']) move_vector[1] = 1;
 
-	if (move_vector[0] || move_vector[1] || move_vector[2])
+	if (move_vector[0] || move_vector[1] || move_vector[2]) // Move the light source or the target
 	{
 		if (lightSource < 0)
 		{
@@ -257,15 +267,12 @@ void DrawGraphics (void)
 		}
 	}
 	
-    //for(int i=0; i<lightSources.size(); i++)
-    //    lightSources[i].shadowTree.traverse(Point(position[0],position[1],position[2]), traverse_test, NULL);
-	
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 	gluLookAt(position[0],position[1],position[2],target[0],target[1],target[2],0,1,0);
 	glDisable(GL_LIGHTING);
-    for (int i = 0; i < lightSources.size(); i++) {
+    for (int i = 0; i < lightSources.size(); i++) { // Position and draw the lights
 		PointLightSource& light = lightSources[i];
 		float lp[4] = { 0, 0, 0, 1 };
 		float lc[4] = { 1, 1, 1, 1 };
@@ -282,21 +289,17 @@ void DrawGraphics (void)
 		glVertex3fv(lp);
 		glEnd();
 	}
-	if (enableLighting)
+	if (enableLighting) // Enable lighting if needed
 		glEnable(GL_LIGHTING);
+	// Make everything white. The lights will color everything
 	glColor3f(1,0,0);
+	// Traverse the BSP tree in order and drawing the fragments in each
 	tree.traverse(frontToBack,Point(position[0],position[1],position[2]),DrawFragments,NULL);
-	//glBegin(GL_QUADS);
-	//glNormal3f(0,0,1); glVertex3d(-1,-1,1); glVertex3d(1,-1,1); glVertex3d(1,1,1); glVertex3d(-1,1,1);
-	//glNormal3f(1,0,0); glVertex3d(1,-1,1); glVertex3d(1,-1,-1); glVertex3d(1,1,-1); glVertex3d(1,1,1);
-	//glNormal3f(0,0,-1); glVertex3d(1,-1,-1); glVertex3d(-1,-1,-1); glVertex3d(-1,1,-1); glVertex3d(1,1,-1);
-	//glNormal3f(-1,0,0); glVertex3d(-1,-1,-1); glVertex3d(-1,-1,1); glVertex3d(-1,1,1); glVertex3d(-1,1,-1);
-	//glNormal3f(0,-1,0); glVertex3d(-1,-1,1); glVertex3d(-1,-1,-1); glVertex3d(1,-1,-1); glVertex3d(1,-1,1);
-	//glNormal3f(0,1,0); glVertex3d(-1,1,1); glVertex3d(1,1,1); glVertex3d(1,1,-1); glVertex3d(-1,1,-1);
-	//glEnd();
+	// Present the new frame
 	glutSwapBuffers();
 }
 
+// Parses an OBJ file (throwing away most of the gory details
 bool ParseOBJ(vector<Polygon>& polygons, const char* objFile, float scale, float tx, float ty, float tz)
 {
 	double x, y, z;
@@ -311,13 +314,13 @@ bool ParseOBJ(vector<Polygon>& polygons, const char* objFile, float scale, float
 		fprintf(stderr,"Failed to open OBJ file '%s'\n",objFile);
 		return false;
 	}
-	
+	// Read a line
 	while (fgets(buffer,256,file))
 	{
 		switch (*buffer)
 		{
-		case 'v':
-			if (buffer[1] == 'n') continue; // ignore normals
+		case 'v': // Vertex definition
+			if (buffer[1] != ' ') continue; // ignore normals and texcoords
 			x = strtod(buffer+1,&ptr);
 			y = strtod(ptr,&ptr);
 			z = strtod(ptr,&ptr);
@@ -325,7 +328,7 @@ bool ParseOBJ(vector<Polygon>& polygons, const char* objFile, float scale, float
 			printf("v %f %f %f\n",x,y,z);
 			points.push_back(Point(x*scale+tx,y*scale+ty,z*scale+tz));
 			break;
-		case 'f':
+		case 'f': // Face definition
 			polypoints.clear();
 			ptr = buffer+1;
 			printf("f ");
@@ -346,6 +349,7 @@ bool ParseOBJ(vector<Polygon>& polygons, const char* objFile, float scale, float
 	return true;
 }
 
+// Checks to see if a string starts with another string, and updates ptr to follow that other string if it does
 inline bool starts_with(char* str, const char* search,char** ptr)
 {
 	int len = strlen(search);
@@ -357,6 +361,7 @@ inline bool starts_with(char* str, const char* search,char** ptr)
 	return false;
 }
 
+// Loads a scene from a file and adds it to the BSP tree
 bool LoadScene(const char* sceneFile)
 {
 	char buffer[512];
@@ -372,17 +377,17 @@ bool LoadScene(const char* sceneFile)
 	{
 		char* ptr = strchr(buffer,'\n');
 		if (ptr) *ptr = 0; // Strip new line
-		if (starts_with(buffer,"scale ",&ptr))
+		if (starts_with(buffer,"scale ",&ptr)) // Set scale
 			scale = strtod(ptr,NULL);
-		else if (starts_with(buffer,"translate ",&ptr))
+		else if (starts_with(buffer,"translate ",&ptr)) // Set translate
 		{
 			tx = strtod(ptr,&ptr);
 			ty = strtod(ptr,&ptr);
 			tz = strtod(ptr,&ptr);
 		}
-		else if (starts_with(buffer,"obj ",&ptr))
+		else if (starts_with(buffer,"obj ",&ptr)) // OBJ file reference
 			ParseOBJ(polygons,ptr,scale,tx,ty,tz);
-		else if (starts_with(buffer,"light ",&ptr))
+		else if (starts_with(buffer,"light ",&ptr)) // Light definition
 		{
 			float x,y,z,r,g,b;
 			x = strtod(ptr,&ptr);
@@ -395,9 +400,9 @@ bool LoadScene(const char* sceneFile)
 		}
 	}
 	
-	//Utility::permute_list(polygons);
-	tree.add_polygons(polygons);
-	tree.dump();
+	Utility::permute_list(polygons);
+	tree.add_polygons(polygons); // Add all polygons to the BSP tree
+	//tree.dump();
 
 	return true;
 }
@@ -410,27 +415,17 @@ int main (int argc, char* argv[])
 		return -1;
 	}
 	
+	// Load our scene
 	if (!LoadScene(argv[1]))
 		return -1;
 
-	/*if (argc > 2)
-	{
-		float scale = 1;
-		float tx=0,ty=0,tz=0;
-		if (argc > 3) scale = strtod(argv[3],NULL);
-		if (argc > 4) tx = strtod(argv[4],NULL);
-		if (argc > 5) ty = strtod(argv[5],NULL);
-		if (argc > 6) tz = strtod(argv[6],NULL);
-		vector<Polygon> polygons = ParseOBJ(argv[2],scale,tx,ty,tz);
-		Utility::permute_list(polygons);
-		tree.add_polygons(polygons);
-	}*/
-	
+	// Init GLUT
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
 	glutInitWindowPosition(100,100);
 	glutInitWindowSize(WIDTH,HEIGHT);
 	glutCreateWindow("Shadow BSP");
+	// Callbacks
 	glutDisplayFunc(DrawGraphics);
 	glutIdleFunc(DrawGraphics);
 	glutKeyboardFunc(Keyboard);
@@ -438,18 +433,19 @@ int main (int argc, char* argv[])
 	glutMouseFunc(Mouse);
 	glutMotionFunc(Motion);
 	
-	glClearColor(0,0,0,1);
-	glMatrixMode(GL_PROJECTION);
+	// Init GL
+	glClearColor(0,0,0,1); // Back color = black
+	glMatrixMode(GL_PROJECTION); // Configure projection matrix
 	glLoadIdentity();
 	gluPerspective(45,WIDTH/HEIGHT,0.001,1000);
-	glEnable(GL_CULL_FACE);
-	glEnable(GL_LIGHTING);
-	glEnable(GL_COLOR_MATERIAL);
-	glPointSize(20);
-	//glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE); // Don't draw the backs of faces
+	glEnable(GL_LIGHTING); // Enable lighting calculations
+	glEnable(GL_COLOR_MATERIAL); // Still use glColor to shade polygons
+	glPointSize(20); // Big points for indicating light position
+	//glEnable(GL_DEPTH_TEST); // NO DEPTH!!!
 
-	//tree.init_fragments();
-	UpdateLighting();
+	tree.init_lighting();
+	//UpdateLighting(); // Initial update of lighting
 	
 	glutMainLoop();
 	return 0;

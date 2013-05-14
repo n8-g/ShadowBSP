@@ -111,6 +111,7 @@ private:
 	int _size;
 	Vector3d _n;
 	
+	// Use malloc to avoid constructor overhead. But make sure we don't mix and match!!
 	static Point* alloc_points(int count) { return (Point*)malloc(sizeof(Point)*count); }
 	
 public:

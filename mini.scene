@@ -1,0 +1,8 @@
+light 0 10 0 	0.4 0.0 0.0
+light 2 8 0 	0.0 0.4 0.0
+light 0 8 2 	0.0 0.0 0.4
+scale 0.05
+obj alfa147.obj
+scale 10
+translate -5 -10 -5
+obj cube.obj

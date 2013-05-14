@@ -22,10 +22,25 @@ void PointLightSource::determineShadow(vector<Polygon>& lit, vector<Polygon>& sh
 		if (shadowNode->out())
 		{
 			int size = polygon.size();
+
 			//printf("Lighting fragment\n");
 			//fragment.add_light(index); // Add the GL light index to the fragment's light list
+			vector<int> faces;
 			for (int i = 0; i < size; ++i)
-				shadowNode->add_polygon(Polygon(position,polygon[i],polygon[(i+1)%size]));
+				faces.push_back(i);
+			for (int i = 0; i < 10; i++) {
+				// pick two random elements (it may pick the same one twice)
+				int idx_a = rand() % size;
+				int idx_b = rand() % size;
+
+				// swap the two elements
+				int temp = faces[idx_a];
+				faces[idx_a] = faces[idx_b];
+				faces[idx_b] = temp;
+			}
+			
+			for (int i = 0; i < size; ++i)
+				shadowNode->add_polygon(Polygon(position,polygon[faces[i]],polygon[(faces[i]+1)%size]));
 			lit.push_back(polygon);
 		}
 		else
@@ -35,13 +50,14 @@ void PointLightSource::determineShadow(vector<Polygon>& lit, vector<Polygon>& sh
 	else
 	{
 		//printf("Splitting fragment\n");
-		Plane plane = shadowNode->plane();
+		const Plane& plane = shadowNode->plane();
+
 		Polygon front,back;
 		polygon.split(front,back,plane.n,plane.d); // Split by the shadow plane
 		//printf("%d front points, %d back points\n",front.size(),back.size());
-		if (front.size() > 2)
+		if (front.size())
 			determineShadow(lit,shadowed,shadowNode->front(),front);
-		if (back.size() > 2)
+		if (back.size())
 			determineShadow(lit,shadowed,shadowNode->back(),back);
 	}
 }

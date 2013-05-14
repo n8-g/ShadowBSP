@@ -37,18 +37,24 @@ void Polygon::split(Polygon& front, Polygon& back, const Vector3d& normal, doubl
 	lastdist = _points[lasti = _size-1].dot(normal) - distance;
 	for (i = 0; i < _size; lasti = i++, lastdist = dist) // Walk around the polygon
 	{
-		dist = (*this)[i].dot(normal) - distance; // Check which side of the plane this point is on
+		dist = _points[i].dot(normal) - distance; // Check which side of the plane this point is on
 		if (dist < -THRESHOLD) // Back
 		{
 			if (lastdist > THRESHOLD) // Last one was in front, add a split point
+			{
 				*frontptr++ = *backptr++ = _points[i].interpolate(_points[lasti],dist/(dist-lastdist));
+				//printf("lengthsq: %g, %g\n",(frontptr[-1]-_points[i]).lengthsq(),(frontptr[-1]-_points[lasti]).lengthsq());
+			}
 			++nback;
 			*backptr++ = _points[i];
 		}
 		else if (dist > THRESHOLD) // Front
 		{
 			if (lastdist < -THRESHOLD) // Last one was in back, add a split point
+			{
 				*frontptr++ = *backptr++ = _points[i].interpolate(_points[lasti],dist/(dist-lastdist));
+				//printf("lengthsq: %g, %g\n",(frontptr[-1]-_points[i]).lengthsq(),(frontptr[-1]-_points[lasti]).lengthsq());
+			}
 			++nfront;
 			*frontptr++ = _points[i];
 		}
