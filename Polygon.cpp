@@ -7,112 +7,71 @@ using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-Polygon::Polygon(const std::vector<Point>& points) : _points(points), _n()
+Polygon::Polygon(const Point* points, int npoints) : _points(alloc_points(npoints)), _size(npoints), _n(0,0,0)
 {
 	// Newell's Method
-	if (points.size() > 2)
+	for (int i = 0; i < npoints; ++i)
 	{
-		for (int i = 0; i < points.size(); ++i)
-		{
-			const Point& p1 = points[i], &p2 = points[(i+1)%points.size()];
-			_n.x += (p1.y-p2.y) * (p1.z+p2.z);
-			_n.y += (p1.z-p2.z) * (p1.x+p2.x);
-			_n.z += (p1.x-p2.x) * (p1.y+p2.y);
-		}
-		_n = _n.normalize();
+		_points[i] = points[i];
+		const Point& p1 = points[i], &p2 = points[(i+1)%npoints];
+		_n.x += (p1.y-p2.y) * (p1.z+p2.z);
+		_n.y += (p1.z-p2.z) * (p1.x+p2.x);
+		_n.z += (p1.x-p2.x) * (p1.y+p2.y);
 	}
+	_n = _n.normalize();
 }
 
-// Splits a polygon by a plane defined by normal and dist and fills 
+// Splits a fragment by a plane defined by normal and dist and fills 
 void Polygon::split(Polygon& front, Polygon& back, const Vector3d& normal, double distance) const
 {
 	int i = 0;
-	int size = _points.size();
-	front = Polygon(vector<Point>(),*this);
-	back = Polygon(vector<Point>(),*this);
-	double lastdist, dist, lasti;
+	double lastdist, dist;
+	Point* frontpts = alloc_points(_size+2);
+	Point* backpts = alloc_points(_size+2);
+	Point* frontptr = frontpts;
+	Point* backptr = backpts;
 	int nfront=0, nback=0;
-	lastdist = _points[lasti = size-1].dot(normal) - distance;
-	for (i = 0; i < size; lasti = i++, lastdist = dist) // Walk around the polygon
+	int lasti;
+	front._size = 0;
+	back._size = 0;
+	lastdist = _points[lasti = _size-1].dot(normal) - distance;
+	for (i = 0; i < _size; lasti = i++, lastdist = dist) // Walk around the polygon
 	{
-		dist = _points[i].dot(normal) - distance; // Check which side of the plane this point is on
+		dist = (*this)[i].dot(normal) - distance; // Check which side of the plane this point is on
 		if (dist < -THRESHOLD) // Back
 		{
 			if (lastdist > THRESHOLD) // Last one was in front, add a split point
-			{
-				Point split = _points[i].interpolate(_points[lasti],dist/(dist-lastdist));
-				front._points.push_back(split);
-				back._points.push_back(split);
-			}
+				*frontptr++ = *backptr++ = _points[i].interpolate(_points[lasti],dist/(dist-lastdist));
 			++nback;
-			back._points.push_back(_points[i]);
+			*backptr++ = _points[i];
 		}
 		else if (dist > THRESHOLD) // Front
 		{
 			if (lastdist < -THRESHOLD) // Last one was in back, add a split point
-			{
-				Point split = _points[i].interpolate(_points[lasti],dist/(dist-lastdist));
-				front._points.push_back(split);
-				back._points.push_back(split);
-			}
+				*frontptr++ = *backptr++ = _points[i].interpolate(_points[lasti],dist/(dist-lastdist));
 			++nfront;
-			front._points.push_back(_points[i]);
+			*frontptr++ = _points[i];
 		}
 		else // Its on the plane, add it to both polygons
 		{
-			front._points.push_back(_points[i]);
-			back._points.push_back(_points[i]);
+			*frontptr++ = _points[i];
+			*backptr++ = _points[i];
 		}
 	}
-	if (!nfront) front._points.clear(); // All points in front are planar, just clear it
-	if (!nback) back._points.clear(); // All points in back are planar, just clear it
-	/*
-	Point points[3] = {_a,_b,_c};
-	double distances[3] = {_a.dot(normal),_b.dot(normal),_c.dot(normal)};
-	if (distances[0] >= dist-THRESHOLD && distances[1] >= dist-THRESHOLD && distances[2] >= dist-THRESHOLD) // No need to split
-		front.push_back(*this);
-	else if (distances[0] <= dist+THRESHOLD && distances[1] <= dist+THRESHOLD && distances[2] <= dist+THRESHOLD) // No need to split
-		back.push_back(*this);
-	else
+	if (nfront)
 	{
-		for (int i = 0; i < 3; ++i)
-		{
-			int j = (i + 1) % 3;
-			int k = (j + 1) % 3;
-			if (distances[i] < dist+THRESHOLD || distances[j] >= dist+THRESHOLD) continue;
-			// point i is in front of the plane and point j is behind the plane
-			if (distances[k] >= dist-THRESHOLD) // k is on or in front of the plane
-			{
-				Point ij = points[i].interpolate(points[j],(dist-distances[j])/(distances[i]-distances[j]));
-				Point kj = points[k].interpolate(points[j],(dist-distances[j])/(distances[k]-distances[j]));
-				Polygon f1(points[i],kj,points[k],*this);
-				Polygon b1(ij,points[j],kj,*this);
-				cout << "New front fragment: " << f1 << endl;
-				cout << "New back fragment: " << b1 << endl;
-				front.push_back(f1);
-				back.push_back(b1);
-				if (distances[k] > dist+THRESHOLD)
-				{
-					Polygon f2(points[i],kj,points[k],*this);
-					cout << "New front fragment: " << f2 << endl;
-					front.push_back(f2);
-				}
-			}
-			else
-			{
-				Point ij = points[i].interpolate(points[j],(dist-distances[j])/(distances[i]-distances[j]));
-				Point ik = points[i].interpolate(points[k],(dist-distances[k])/(distances[i]-distances[k]));
-				printf("New front fragment: "); dump(points[i]); dump(ij); dump(ik); printf("\n");
-				printf("New back fragment: "); dump(ij); dump(points[j]); dump(points[k]); printf("\n");
-				printf("New back fragment: "); dump(points[j]); dump(points[k]); dump(ik); printf("\n");
-				front.push_back(Polygon(points[i],ij,ik,*this));
-				back.push_back(Polygon(ij,points[j],points[k],*this));
-				back.push_back(Polygon(points[j],points[k],ik,*this));
-			}
-			return;
-		}
+		front._points = frontpts;
+		front._size = frontptr-frontpts;
+		front._n = _n;
 	}
-	*/
+	else free(frontpts);
+	if (nback)
+	{
+		back._points = backpts;
+		back._size = backptr-backpts;
+		back._n = _n;
+	}
+	else free(backpts);
 }
 std::ostream& operator<< (std::ostream& stream, const Point& p) 
 { 

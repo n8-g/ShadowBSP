@@ -11,7 +11,7 @@ using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-float Utility::_threshold = 0.00005;
+float Utility::_threshold = THRESHOLD;
 
 float Utility::coplanar_det(const Point &a, const Point &b, const Point &c, 
 		const Point &p)

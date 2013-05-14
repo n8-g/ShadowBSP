@@ -32,8 +32,8 @@ public:
 	~BSPNode();
 
 	// - convert this node into an internal node
-	// the Polygon will also represent the partition plane
-	void convert(const Polygon &polygon);
+	// the Fragment will also represent the partition plane
+	void convert(const Polygon &fragment);
 
 	// get-xxx functions
 	BSPNode* 				front() const;		// those in front of the plane
@@ -44,8 +44,8 @@ public:
 
 	const Plane& 				plane() const { return _plane; }		// the partitioning plane
 
-	std::vector<Polygon>&		polygons();			// the polygons on the plane
-	const std::vector<Polygon>& polygons() const;
+	std::vector<Polygon>&		polygons()	{ return _on_list; }	// the polygons on the plane
+	const std::vector<Polygon>& polygons() const { return _on_list; }
 
 	//std::vector<Polygon>&		fragments() { return _fragments; }		
 	//const std::vector<Polygon>& fragments() const { return _fragments; }
@@ -54,14 +54,13 @@ public:
 	// OpenGL display list for optimized rendering
 	unsigned int display_list;
 	
-	void clear() { delete _front; delete _back; _front = NULL; _back = NULL; }
-	
-	void add_polygon(const Polygon &polygon);
+	void clear();
+	void add_polygon(const Polygon& polygon);
 	
 	void add_polygons(const std::vector<Polygon>& polygons);
 	
-	// Initializes fragments by copying them from polygons()
-	void init_fragments();
+	// Initializes _light_node for this node and all children
+	void init_lighting();
 	
 	typedef bool (*Callback) (BSPNode* node, void* data);
 	bool traverse(bool frontfirst, const Point& eye, BSPNode::Callback callback, void* param);
@@ -71,10 +70,8 @@ private:
 	// the partitioning plane
 	//Polygon _plane;
 
-	// the list of polygons that are on the plane.
-	// the partitioning plane will be the first polygon in the list
+	// the list of gragments that are on the plane.
 	std::vector<Polygon> _on_list;
-	//std::vector<Polygon> _fragments;
 	LightNode _light_node;
 	
 	Plane _plane;

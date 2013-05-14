@@ -12,7 +12,6 @@
 #include "BSPTree.h"
 #include "BSPNode.h"
 
-
 class PointLightSource
 {
     public:

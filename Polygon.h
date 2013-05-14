@@ -7,7 +7,7 @@
 #include <math.h>
 #include <iostream>
 
-#define THRESHOLD 0.0000001
+#define THRESHOLD 0.00000001
 
 struct Point;
 
@@ -19,7 +19,7 @@ struct Vector3d
 	double z;
     
 	// - constructors
-    Vector3d() : x(0), y(0), z(0) { }
+    Vector3d() { } // DOES NOT INITIALIZE VALUES
 	// this one requires specific values for the coordiantes
 	Vector3d(double x, double y, double z) : x(x), y(y), z(z) { }
  
@@ -49,6 +49,7 @@ struct Vector3d
 struct Point : Vector3d
 {
 	// - constructors
+	Point() { } // DOES NOT INITIALIZE VALUES
 	// this one requires specific values for the coordiantes
 	Point(double x, double y, double z) : Vector3d(x,y,z) {}
 
@@ -72,7 +73,7 @@ struct Plane
 	Vector3d n;
 	double d;
 	Plane(const Vector3d& n, double d) : n(n), d(d) {}
-	Plane() : n(), d(0) { }
+	Plane() : n(0,0,0), d(0) { }
 };
 
 /**
@@ -100,40 +101,65 @@ struct Plane
  * For its usage as a fragment, the Polygon class also has a property indicates
  * whether it is lit by some light source.
  **/
+
+class Fragment;
+
 class Polygon
 {
+private:
+	Point* _points;
+	int _size;
+	Vector3d _n;
+	
+	static Point* alloc_points(int count) { return (Point*)malloc(sizeof(Point)*count); }
+	
 public:
 	// - constructors
+	Polygon() : _points(NULL), _size(0) { }
 	// this one requires three vertices
-	Polygon(const Point &a, const Point &b, const Point &c) : _n((b-a).cross(c-b).normalize()) 
+	Polygon(const Point &a, const Point &b, const Point &c) : _points(alloc_points(3)), _size(3), _n((b-a).cross(c-b).normalize()) 
 	{
-		_points.push_back(a);
-		_points.push_back(b);
-		_points.push_back(c);
+		_points[0] = a;
+		_points[1] = b;
+		_points[2] = c;
 	}
-	Polygon(const std::vector<Point>& points);
-	Polygon() {}
+
+	Polygon(const Point* points, int npoints);
 	
 	// - copy constructor
-	Polygon(const Polygon &copy): _points(copy._points), _n(copy._n) {}
+	Polygon(const Polygon &copy): _size(copy._size), _points(alloc_points(copy._size)), _n(copy._n) 
+	{
+   		for (int i = 0; i < copy._size; ++i) 
+   			_points[i] = copy._points[i];  
+	}
+	// Allows us to create a new polygon from a fragment of 
+	Polygon(const Fragment& original);
+	
+	~Polygon() { free(_points); }
+	
+	Fragment& operator=(const Polygon& other)
+	{
+		if (_points) free(_points);
+		if (other._size)
+		{
+		    _points = alloc_points(other._size);
+			_size = other._size;
+	   		for (int i = 0; i < other._size; ++i) 
+	   			_points[i] = other._points[i];
+		}
+		else _size = 0, _points = NULL;
+		_n = other._n;
+	}
 
 	// - accessor to the vertices
-	Point& 			operator[](int index) { return _points[index]; }
 	const Point& 	operator[](int index) const { return _points[index]; }
-	int size() const { return _points.size(); }
+	int size() const { return _size; }
 	
 	const Vector3d& normal() const { return _n; }
 	
 	Plane plane() const { return Plane(_n,_points[0].dot(_n)); }
 	
 	void split(Polygon& front, Polygon& back, const Vector3d& normal, double dist) const;
-
-private:
-	// For splitting
-	Polygon(const std::vector<Point>& points, const Polygon& original) : _points(points), _n(original._n) {}
-	
-	std::vector<Point> _points;
-	Vector3d _n;
 };
 
 struct LightNode

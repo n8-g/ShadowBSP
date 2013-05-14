@@ -15,20 +15,21 @@ using namespace std;
 
 PointLightSource::PointLightSource(const Point &position, const Vector3d &direction, const Vector3d &color, int index):position(position),direction(0,0,0),color(color),index(index) {}
 		
-void PointLightSource::determineShadow(vector<Polygon>& lit, vector<Polygon>& shadowed, BSPNode* shadowNode, Polygon& fragment)
+void PointLightSource::determineShadow(vector<Polygon>& lit, vector<Polygon>& shadowed, BSPNode* shadowNode, Polygon& polygon)
 {
 	if (shadowNode->is_leaf())
 	{
 		if (shadowNode->out())
 		{
+			int size = polygon.size();
 			//printf("Lighting fragment\n");
 			//fragment.add_light(index); // Add the GL light index to the fragment's light list
-			for (int i = 0; i < fragment.size(); ++i)
-				shadowNode->add_polygon(Polygon(position,fragment[i],fragment[(i+1)%fragment.size()]));
-			lit.push_back(fragment);
+			for (int i = 0; i < size; ++i)
+				shadowNode->add_polygon(Polygon(position,polygon[i],polygon[(i+1)%size]));
+			lit.push_back(polygon);
 		}
 		else
-			shadowed.push_back(fragment);
+			shadowed.push_back(polygon);
 		//treeNode->fragments().push_back(fragment);
 	}
 	else
@@ -36,7 +37,7 @@ void PointLightSource::determineShadow(vector<Polygon>& lit, vector<Polygon>& sh
 		//printf("Splitting fragment\n");
 		Plane plane = shadowNode->plane();
 		Polygon front,back;
-		fragment.split(front,back,plane.n,plane.d); // Split by the shadow plane
+		polygon.split(front,back,plane.n,plane.d); // Split by the shadow plane
 		//printf("%d front points, %d back points\n",front.size(),back.size());
 		if (front.size() > 2)
 			determineShadow(lit,shadowed,shadowNode->front(),front);

@@ -26,19 +26,28 @@ BSPNode::~BSPNode()
 {
 	// when the destructor is called, both subtrees should have been released,
 	// so just set the two pointers to NULL
-	delete _front;
-	delete _back;
+	clear();
+}
+
+void BSPNode::clear()
+{
+    delete _front; 
+	delete _back; 
+	_front = NULL; 
+	_back = NULL; 
+	_on_list.clear(); 
+	_light_node.clear();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void BSPNode::convert(const Polygon &polygon)
+void BSPNode::convert(const Polygon &fragment)
 {
 	// append the polygon to the 'on set'
-	_on_list.push_back(polygon);
+	_on_list.push_back(fragment);
 	
-	_plane.n = polygon.normal();
-	_plane.d = polygon[0].dot(_plane.n);
+	_plane.n = fragment.normal();
+	_plane.d = fragment[0].dot(_plane.n);
 
 	// create two children, which are both leaves, to represent the two new
 	// cells
@@ -46,7 +55,7 @@ void BSPNode::convert(const Polygon &polygon)
 	_back = new BSPNode(false);	// those behind are considered inside
 }
 	
-void BSPNode::init_fragments()
+void BSPNode::init_lighting()
 {
 	_light_node.clear();
 	for (int i = 0; i < _on_list.size(); ++i)
@@ -56,9 +65,9 @@ void BSPNode::init_fragments()
 	//for (int i = 0; i < _on_list.size(); ++i)
 	//	_fragments.push_back(_on_list[i]);
 	if (_front)
-		_front->init_fragments();
+		_front->init_lighting();
 	if (_back)
-		_back->init_fragments();
+		_back->init_lighting();
 }
 
 void BSPNode::dump()
@@ -69,7 +78,7 @@ void BSPNode::dump()
 	for (int i = 0; i < _on_list.size(); ++i)
 	{
 		Polygon& fragment = _on_list[i];
-		cout << "Polygon " <<fragment << endl;
+		cout << "Fragment " <<fragment << endl;
 	}
 	_light_node.dump();
 	/*for (int i = 0; i < _fragments.size(); ++i)
@@ -123,10 +132,10 @@ void BSPNode::add_polygon(const Polygon& polygon)
 
 			polygon.split(front, back, _plane.n, _plane.d);
 			
-			if (front.size())
+			if (front.size() > 2)
 				_front->add_polygon(front);
 			
-			if (back.size())
+			if (back.size() > 2)
 				_back->add_polygon(back);
 		}
 		//printf("BSPNode(%p): done\n",this);
@@ -158,16 +167,6 @@ bool BSPNode::is_leaf() const
 {
 	// a tree node is a leaf when both children are NULL
 	return (_front == NULL && _back == NULL);
-}
-
-vector<Polygon>& BSPNode::polygons() 
-{
-	return _on_list;
-}
-
-const vector<Polygon>& BSPNode::polygons() const
-{
-	return _on_list;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

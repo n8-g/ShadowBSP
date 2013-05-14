@@ -1,8 +1,7 @@
 light 0 10 0 	0.4 0.0 0.0
 light 2 8 0 	0.0 0.4 0.0
 light 0 8 2 	0.0 0.0 0.4
-scale 0.1
-obj shuttle.obj
-scale 5
-translate -2.5 -7.5 -2.5
+obj cube.obj
+scale 10
+translate -5 -15 -5
 obj cube.obj

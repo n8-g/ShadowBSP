@@ -40,7 +40,7 @@ static bool singleLight = false;
 static int nframes;
 static int frame_timer;
 
-int UpdateLighting(void);
+void UpdateLighting(void);
 
 void Keyboard(unsigned char key, int x, int y)
 {
@@ -178,7 +178,7 @@ bool GenerateShadows(LightNode* node, PointLightSource *pls)
 	    Polygon& p = node->fragments[i];
 		Vector3d normal = p.normal();
 		//cout << "Generating shadows for " << p << endl;
-		float dot = normal.dot(pls->position-p[0]);
+		double dot = normal.dot(pls->position-p[0]);
 	    if(dot > 0) // Facing the light
 			pls->determineShadow(node->illuminated->fragments,node->shadowed->fragments,&shadowTree,p);
 		else node->shadowed->fragments.push_back(p); // Keep it in the tree in case another light illuminates it
@@ -199,10 +199,11 @@ bool GenerateShadows(BSPNode* node, void* data)
 	return true;
 }
 
-int UpdateLighting(void)
+void UpdateLighting(void)
 {
+	int start = glutGet(GLUT_ELAPSED_TIME);
 	//cout << "Updating lighting" << endl;
-	tree.init_fragments();
+	tree.init_lighting();
     for (int i = 0; i < lightSources.size(); i++) {
 		if (singleLight && i != lightSource)
 			continue;
@@ -210,6 +211,7 @@ int UpdateLighting(void)
 		PointLightSource& light = lightSources[i];
 	    tree.traverse(true, lightSources[i].position, GenerateShadows, &lightSources[i]);
 	}
+	printf("Lighting updated in %d milliseconds\n",glutGet(GLUT_ELAPSED_TIME)-start);
 }
 
 void DrawGraphics (void)
@@ -295,16 +297,20 @@ void DrawGraphics (void)
 	glutSwapBuffers();
 }
 
-vector<Polygon> ParseOBJ(const char* objFile, float scale, float tx, float ty, float tz)
+bool ParseOBJ(vector<Polygon>& polygons, const char* objFile, float scale, float tx, float ty, float tz)
 {
 	double x, y, z;
 	vector<Point> points;
-	vector<Polygon> polygons;
 	vector<Point> polypoints;
 	char buffer[256];
 	char* ptr,*end;
 	int index;
 	FILE* file = fopen(objFile,"r");
+	if (!file)
+	{
+		fprintf(stderr,"Failed to open OBJ file '%s'\n",objFile);
+		return false;
+	}
 	
 	while (fgets(buffer,256,file))
 	{
@@ -333,68 +339,67 @@ vector<Polygon> ParseOBJ(const char* objFile, float scale, float tx, float ty, f
 				polypoints.push_back(points[index-1]);
 			}
 			printf("\n");
-			polygons.push_back(polypoints);
+			polygons.push_back(Polygon(&polypoints[0],polypoints.size()));
 			break;
 		}
 	}
-	return polygons;
+	return true;
 }
 
-
-int LoadScene(const char* sceneFile)
+inline bool starts_with(char* str, const char* search,char** ptr)
 {
-	vector<Polygon> polygons;
-	vector<Point> points;
-    
-	ifstream fin(sceneFile);
-    
-	// number of points
-	int n = 0;
-	fin >> n;
-	
-	// read in points
-	for (int i = 0; i < n; i++) {
-		float x, y ,z;
-		fin >> x >> y >> z;
-		
-		points.push_back(Point(x, y, z));
+	int len = strlen(search);
+	if (!strncmp(str,search,len))
+	{
+		if (ptr) *ptr = str + len;
+		return true;
 	}
-    
-	// number of polygons
-	int m = 0;
-	fin >> m;
-    
-	// read in indices and create polygons
-	for (int i = 0; i < m; i++) {
-		int id1, id2, id3;
-		fin >> id1 >> id2 >> id3;
-		Polygon p(points[id1], points[id2], points[id3]);
-		polygons.push_back(p);
-	}
+	return false;
+}
 
-	Utility::permute_list(polygons);
-    
+bool LoadScene(const char* sceneFile)
+{
+	char buffer[512];
+	vector<Polygon> polygons;
+	FILE* file = fopen(sceneFile,"r");
+	if (!file)
+	{
+		fprintf(stderr,"Unable to open scene file '%s'\n",sceneFile);
+		return false;
+	}
+	float tx=0,ty=0,tz=0,scale=1;
+	while (fgets(buffer,512,file))
+	{
+		char* ptr = strchr(buffer,'\n');
+		if (ptr) *ptr = 0; // Strip new line
+		if (starts_with(buffer,"scale ",&ptr))
+			scale = strtod(ptr,NULL);
+		else if (starts_with(buffer,"translate ",&ptr))
+		{
+			tx = strtod(ptr,&ptr);
+			ty = strtod(ptr,&ptr);
+			tz = strtod(ptr,&ptr);
+		}
+		else if (starts_with(buffer,"obj ",&ptr))
+			ParseOBJ(polygons,ptr,scale,tx,ty,tz);
+		else if (starts_with(buffer,"light ",&ptr))
+		{
+			float x,y,z,r,g,b;
+			x = strtod(ptr,&ptr);
+			y = strtod(ptr,&ptr);
+			z = strtod(ptr,&ptr);
+			r = strtod(ptr,&ptr);
+			g = strtod(ptr,&ptr);
+			b = strtod(ptr,&ptr);
+	        lightSources.push_back(PointLightSource(Point(x,y,z), Vector3d(0,0,0), Vector3d(r,g,b),lightSources.size()));
+		}
+	}
+	
+	//Utility::permute_list(polygons);
 	tree.add_polygons(polygons);
 	tree.dump();
 
-    //tree.traverse(viewPoint, traverse_test, NULL);
-    //cout<<"!!!!!!!!!\n\n";
-    
-    // number of light sources
-	int l = 0;
-	fin >> l;
-    
-    for (int i = 0; i < l; i++) {
-		float lp[4] = { 0, 0, 0, 1 };
-        float r, g, b;
-		fin >> lp[0] >> lp[1] >> lp[2];
-        fin >> r >> g >> b;
-        lightSources.push_back(PointLightSource(Point(lp[0],lp[1],lp[2]), Vector3d(0,0,0), Vector3d(r,g,b),i));
-    }
-	
-    
-    fin.close();
-	return 0;
+	return true;
 }
 
 int main (int argc, char* argv[])
@@ -405,9 +410,10 @@ int main (int argc, char* argv[])
 		return -1;
 	}
 	
-	LoadScene(argv[1]);
+	if (!LoadScene(argv[1]))
+		return -1;
 
-	if (argc > 2)
+	/*if (argc > 2)
 	{
 		float scale = 1;
 		float tx=0,ty=0,tz=0;
@@ -418,7 +424,7 @@ int main (int argc, char* argv[])
 		vector<Polygon> polygons = ParseOBJ(argv[2],scale,tx,ty,tz);
 		Utility::permute_list(polygons);
 		tree.add_polygons(polygons);
-	}
+	}*/
 	
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
@@ -439,7 +445,7 @@ int main (int argc, char* argv[])
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_LIGHTING);
 	glEnable(GL_COLOR_MATERIAL);
-	glPointSize(10);
+	glPointSize(20);
 	//glEnable(GL_DEPTH_TEST);
 
 	//tree.init_fragments();
