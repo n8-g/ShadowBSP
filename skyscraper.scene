@@ -4,5 +4,5 @@ light 0 8 2 	0.0 0.0 0.4
 scale 0.1
 obj skyscraper.obj
 scale 10
-translate -5 -11 -5
+translate -5 -15 -5
 obj cube.obj

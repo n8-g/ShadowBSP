@@ -7,7 +7,7 @@
 #include <math.h>
 #include <iostream>
 
-#define THRESHOLD 0.000000001
+#define THRESHOLD 0.00000001
 
 struct Point;
 
@@ -110,7 +110,6 @@ private:
 	Point* _points;
 	int _size;
 	Vector3d _n;
-	double _d;
 	
 	// Use malloc to avoid constructor overhead. But make sure we don't mix and match!!
 	static Point* alloc_points(int count) { return (Point*)malloc(sizeof(Point)*count); }
@@ -124,7 +123,6 @@ public:
 		_points[0] = a;
 		_points[1] = b;
 		_points[2] = c;
-		_d = Point((a.x+b.x+c.x)/3,(a.y+b.y+c.y)/3,(a.z+b.z+c.z)/3).dot(_n);
 	}
 
 	Polygon(const Point* points, int npoints);
@@ -159,7 +157,6 @@ public:
 	int size() const { return _size; }
 	
 	const Vector3d& normal() const { return _n; }
-	double distance() const { return _d; }
 	
 	Plane plane() const { return Plane(_n,_points[0].dot(_n)); }
 	
